@@ -848,19 +848,43 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
     }
   };
 
-  const handleReception = (withRetard = false) => {
-    if (withRetard) {
+  // Helpers pour le calcul et l'affichage des retards
+  const formatDelay = (mins) => {
+    if (mins < 60) return `${mins}mn`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h${m}mn` : `${h}h`;
+  };
+
+  const getDelayStyle = (mins) => {
+    if (mins < 5) return { color: 'text-blue-600', bg: 'bg-blue-50', iconColor: 'text-green-500', Icon: CheckCircle };
+    if (mins < 10) return { color: 'text-orange-600', bg: 'bg-orange-50', iconColor: 'text-orange-500', Icon: AlertTriangle };
+    return { color: 'text-red-600', bg: 'bg-red-50', iconColor: 'text-red-500', Icon: AlertTriangle };
+  };
+
+  const handleReception = () => {
+    const startTime = new Date(coulee.created_at).getTime();
+    const delayMs = Date.now() - startTime;
+    const delayMinutes = Math.round(delayMs / 60000);
+
+    if (delayMinutes >= 10) {
+      setRetardData({ minutes: delayMinutes, motif_id: '', commentaire: '' });
       setShowRetardForm('reception');
     } else {
-      updateStep('reception', { recue: true, retard_minutes: 0 });
+      updateStep('reception', { recue: true, retard_minutes: delayMinutes });
     }
   };
 
-  const handleInstallation = (withRetard = false) => {
-    if (withRetard) {
+  const handleInstallation = () => {
+    const startTime = new Date(coulee.date_reception).getTime();
+    const delayMs = Date.now() - startTime;
+    const delayMinutes = Math.round(delayMs / 60000);
+
+    if (delayMinutes >= 10) {
+      setRetardData({ minutes: delayMinutes, motif_id: '', commentaire: '' });
       setShowRetardForm('installation');
     } else {
-      updateStep('installation', { installee: true, retard_minutes: 0 });
+      updateStep('installation', { installee: true, retard_minutes: delayMinutes });
     }
   };
 
@@ -945,27 +969,34 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
             motif={coulee.motif_reception_libelle}
           >
             {coulee.bobine_recue ? (
-              <div className="text-green-600 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                Reçue le {new Date(coulee.date_reception).toLocaleString('fr-FR')}
-              </div>
+              (() => {
+                const delay = coulee.retard_reception_minutes || 0;
+                const style = getDelayStyle(delay);
+                const DelayIcon = style.Icon;
+                return (
+                  <div className="space-y-1">
+                    <div className={`flex items-center gap-2 ${style.color}`}>
+                      <DelayIcon className={`w-5 h-5 ${style.iconColor}`} />
+                      <span>Bobine reçue le {new Date(coulee.date_reception).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      {delay > 0 && <span className="font-semibold">— {formatDelay(delay)} de retard</span>}
+                    </div>
+                    {delay >= 10 && coulee.motif_reception_libelle && (
+                      <div className="text-sm text-red-500 ml-7 italic">Motif : {coulee.motif_reception_libelle}</div>
+                    )}
+                    {delay >= 10 && coulee.commentaire_reception && (
+                      <div className="text-xs text-gray-500 ml-7">{coulee.commentaire_reception}</div>
+                    )}
+                  </div>
+                );
+              })()
             ) : coulee.bobine_id ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleReception(false)}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                >
-                  <Check className="w-4 h-4" /> {t('coulees.recue_heure')}
-                </button>
-                <button
-                  onClick={() => handleReception(true)}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                >
-                  <AlertTriangle className="w-4 h-4" /> {t('coulees.avec_retard')}
-                </button>
-              </div>
+              <button
+                onClick={handleReception}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 font-medium"
+              >
+                <Check className="w-4 h-4" /> Bobine reçue
+              </button>
             ) : (
               <p className="text-gray-400 italic">Sélectionnez d'abord une bobine</p>
             )}
@@ -982,27 +1013,34 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
             motif={coulee.motif_installation_libelle}
           >
             {coulee.bobine_installee ? (
-              <div className="text-green-600 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                Installée le {new Date(coulee.date_installation).toLocaleString('fr-FR')}
-              </div>
+              (() => {
+                const delay = coulee.retard_installation_minutes || 0;
+                const style = getDelayStyle(delay);
+                const DelayIcon = style.Icon;
+                return (
+                  <div className="space-y-1">
+                    <div className={`flex items-center gap-2 ${style.color}`}>
+                      <DelayIcon className={`w-5 h-5 ${style.iconColor}`} />
+                      <span>Bobine installée le {new Date(coulee.date_installation).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      {delay > 0 && <span className="font-semibold">— {formatDelay(delay)} de retard</span>}
+                    </div>
+                    {delay >= 10 && coulee.motif_installation_libelle && (
+                      <div className="text-sm text-red-500 ml-7 italic">Motif : {coulee.motif_installation_libelle}</div>
+                    )}
+                    {delay >= 10 && coulee.commentaire_installation && (
+                      <div className="text-xs text-gray-500 ml-7">{coulee.commentaire_installation}</div>
+                    )}
+                  </div>
+                );
+              })()
             ) : coulee.bobine_recue ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleInstallation(false)}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                >
-                  <Check className="w-4 h-4" /> {t('coulees.installee_heure')}
-                </button>
-                <button
-                  onClick={() => handleInstallation(true)}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-                >
-                  <AlertTriangle className="w-4 h-4" /> {t('coulees.avec_retard')}
-                </button>
-              </div>
+              <button
+                onClick={handleInstallation}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 font-medium"
+              >
+                <Check className="w-4 h-4" /> Bobine installée
+              </button>
             ) : (
               <p className="text-gray-400 italic">La bobine doit être reçue d'abord</p>
             )}
@@ -1486,9 +1524,13 @@ function WorkflowStep({ number, title, icon: Icon, done, active, retard, motif, 
           {title}
         </span>
         {retard > 0 && (
-          <span className="ml-auto text-red-600 text-sm flex items-center gap-1">
-            <AlertTriangle className="w-4 h-4" />
-            +{retard} min {motif && `(${motif})`}
+          <span className={`ml-auto text-sm flex items-center gap-1 ${
+            retard < 5 ? 'text-blue-600' : retard < 10 ? 'text-orange-600' : 'text-red-600'
+          }`}>
+            {retard < 5 ? <CheckCircle className="w-4 h-4 text-green-500" /> :
+             retard < 10 ? <AlertTriangle className="w-4 h-4 text-orange-500" /> :
+             <AlertTriangle className="w-4 h-4 text-red-500" />}
+            +{retard < 60 ? `${retard}mn` : `${Math.floor(retard/60)}h${retard%60 > 0 ? retard%60 + 'mn' : ''}`} {motif && `(${motif})`}
           </span>
         )}
       </div>
@@ -1500,9 +1542,10 @@ function WorkflowStep({ number, title, icon: Icon, done, active, retard, motif, 
 // Modal Retard
 function RetardModal({ type, motifs, data, onChange, onConfirm, onCancel }) {
   const { t } = useTranslation();
-  const [jours, setJours] = useState(0);
-  const [heures, setHeures] = useState(0);
-  const [minutes, setMinutes] = useState(data.minutes || 0);
+  const initTotal = data.minutes || 0;
+  const [jours, setJours] = useState(Math.floor(initTotal / (24 * 60)));
+  const [heures, setHeures] = useState(Math.floor((initTotal % (24 * 60)) / 60));
+  const [minutes, setMinutes] = useState(initTotal % 60);
 
   // Calculer le total en minutes
   const totalMinutes = (parseInt(jours) || 0) * 24 * 60 + (parseInt(heures) || 0) * 60 + (parseInt(minutes) || 0);
@@ -1536,6 +1579,13 @@ function RetardModal({ type, motifs, data, onChange, onConfirm, onCancel }) {
         <h3 className="text-lg font-bold text-gray-900 mb-4">
           {t('coulees.retard_titre')}
         </h3>
+
+        {initTotal > 0 && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 mb-4">
+            <Clock className="w-4 h-4" />
+            <span>Retard calculé automatiquement : <strong>{formatDuree(initTotal)}</strong></span>
+          </div>
+        )}
         
         <div className="space-y-4">
           <div>
