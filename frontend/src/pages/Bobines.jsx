@@ -4,6 +4,7 @@ import { bobinesApi, steelGradesApi, fournisseursApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../context/I18nContext';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmModal';
 
 const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3002`;
 
@@ -11,6 +12,7 @@ export default function Bobines() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const fileInputRef = useRef(null);
   const [bobines, setBobines] = useState([]);
   const [steelGrades, setSteelGrades] = useState([]);
@@ -1048,7 +1050,15 @@ export default function Bobines() {
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!window.confirm(t('bobines.confirmer_suppr_fournisseur', `Supprimer "${f.nom}" ?`))) return;
+                          const confirmed = await confirm({
+                            type: 'danger',
+                            title: t('bobines.suppr_fournisseur_titre', 'Supprimer le fournisseur'),
+                            message: `${t('bobines.confirmer_suppr_fournisseur', 'Êtes-vous sûr de vouloir supprimer ce fournisseur ?')}`,
+                            description: `"${f.nom}" — ${t('bobines.suppr_fournisseur_desc', 'Cette action est définitive et ne peut pas être annulée.')}`,
+                            confirmLabel: t('common.supprimer'),
+                            cancelLabel: t('common.annuler'),
+                          });
+                          if (!confirmed) return;
                           try {
                             await fournisseursApi.delete(f.id);
                             const fournisseursRes = await fournisseursApi.getAll();
