@@ -264,8 +264,8 @@ function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAd
   const productionItems = navigationKeys.filter(n => n.key !== 'nav.dashboard');
 
   // Titre de section projet
-  const projetTitle = projetParams?.projet_nom
-    ? `${projetParams.projet_nom}${projetParams.client_nom ? ' – ' + projetParams.client_nom : ''}`
+  const projetTitle = projetParams?.client_nom
+    ? `Projet – ${projetParams.client_nom}`
     : 'Projet';
 
   return (
