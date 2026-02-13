@@ -562,6 +562,505 @@ router.put('/:id/parametres', async (req, res) => {
 });
 
 // ============================================
+// GET /api/coulees/:id/pdf - Rapport PDF de la coulée
+// ============================================
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const PDFDocument = require('pdfkit');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Récupérer la coulée avec toutes les infos
+    const [rows] = await pool.query(`
+      SELECT c.*, 
+             b.numero as bobine_numero,
+             b.epaisseur as bobine_epaisseur,
+             b.largeur as bobine_largeur,
+             b.poids as bobine_poids,
+             b.fournisseur as bobine_fournisseur,
+             b.norme as bobine_norme,
+             mr_rec.libelle as motif_reception_libelle,
+             mr_rec.categorie as motif_reception_categorie,
+             mr_inst.libelle as motif_installation_libelle,
+             mr_inst.categorie as motif_installation_categorie,
+             pp.numero as parametre_numero,
+             pp.strip_vitesse_m, pp.strip_vitesse_cm,
+             pp.milling_edge_gauche, pp.milling_edge_droit,
+             pp.pression_rouleaux, pp.pression_rouleaux_unite,
+             pp.tack_amperage, pp.tack_voltage, pp.tack_vitesse_m, pp.tack_vitesse_cm,
+             pp.tack_frequence, pp.tack_type_gaz, pp.tack_debit_gaz,
+             pp.soudure_vitesse_m, pp.soudure_vitesse_cm,
+             pp.soudure_type_fil, pp.soudure_type_flux,
+             src.numero as source_coulee_numero
+      FROM coulees c
+      LEFT JOIN bobines b ON c.bobine_id = b.id
+      LEFT JOIN motifs_retard mr_rec ON c.motif_retard_reception_id = mr_rec.id
+      LEFT JOIN motifs_retard mr_inst ON c.motif_retard_installation_id = mr_inst.id
+      LEFT JOIN parametres_production pp ON c.parametre_id = pp.id
+      LEFT JOIN coulees src ON c.checklist_source_coulee_id = src.id
+      WHERE c.id = ?
+    `, [req.params.id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Coulée non trouvée' });
+    }
+
+    const coulee = rows[0];
+
+    // Récupérer les tubes produits dans cette coulée
+    const [tubes] = await pool.query(`
+      SELECT t.numero, t.longueur, t.diametre, t.statut, t.created_at
+      FROM tubes t WHERE t.coulee_id = ? ORDER BY t.created_at
+    `, [req.params.id]);
+
+    // Récupérer les paramètres du projet
+    const [projetRows] = await pool.query('SELECT * FROM projet_parametres LIMIT 1');
+    const projet = projetRows.length > 0 ? projetRows[0] : {};
+
+    // Créer le document PDF
+    const doc = new PDFDocument({ 
+      size: 'A4', 
+      margin: 40,
+      info: {
+        Title: `Rapport Coulée ${coulee.numero}`,
+        Author: 'LogiTrack',
+        Subject: 'Rapport de coulée'
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=coulee_${coulee.numero}.pdf`);
+    doc.pipe(res);
+
+    // Couleurs
+    const primary = '#92400e';    // amber-800
+    const accent = '#d97706';     // amber-600
+    const gray = '#6b7280';
+    const lightGray = '#f3f4f6';
+    const border = '#e5e7eb';
+    const green = '#059669';
+    const red = '#dc2626';
+    const orange = '#ea580c';
+    const blue = '#2563eb';
+    const pageWidth = doc.page.width - 80;
+
+    // Helpers
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+    const formatDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+    const formatDuree = (mins) => {
+      if (!mins || mins <= 0) return '0 mn';
+      const j = Math.floor(mins / 1440);
+      const h = Math.floor((mins % 1440) / 60);
+      const m = mins % 60;
+      const parts = [];
+      if (j > 0) parts.push(`${j}j`);
+      if (h > 0) parts.push(`${h}h`);
+      parts.push(`${m}mn`);
+      return parts.join(' ');
+    };
+
+    // Footer
+    const footerText = `LogiTrack — Rapport Coulée ${coulee.numero} — ${new Date().toLocaleDateString('fr-FR')}`;
+    const drawFooter = () => {
+      const savedX = doc.x;
+      const savedY = doc.y;
+      const savedBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+      const footerY = doc.page.height - 35;
+      doc.save();
+      doc.strokeColor(border).lineWidth(0.5)
+         .moveTo(40, footerY - 5).lineTo(40 + pageWidth, footerY - 5).stroke();
+      doc.fillColor(gray).fontSize(7).font('Helvetica')
+         .text(footerText, 40, footerY, { align: 'center', width: pageWidth });
+      doc.restore();
+      doc.page.margins.bottom = savedBottom;
+      doc.x = savedX;
+      doc.y = savedY;
+    };
+
+    let yPos = 40;
+
+    // =========================================
+    // HEADER — Bandeau projet avec logos
+    // =========================================
+    const headerTop = 40;
+    const headerHeight = 65;
+    const headerLeft = 40;
+    const headerRight = headerLeft + pageWidth;
+
+    doc.rect(headerLeft, headerTop, pageWidth, headerHeight)
+       .fillAndStroke(lightGray, border);
+
+    const logoMaxH = 45;
+    const logoY = headerTop + 10;
+    const logoMaxW = 75;
+    let logosEndX = headerLeft + 10;
+
+    if (projet.logo_path) {
+      const logoPath = path.join(__dirname, '..', '..', projet.logo_path);
+      if (fs.existsSync(logoPath)) {
+        try { doc.image(logoPath, logosEndX, logoY, { fit: [logoMaxW, logoMaxH] }); logosEndX += logoMaxW + 8; } catch (e) { /* skip */ }
+      }
+    }
+    if (projet.logo_path && projet.client_logo_path) {
+      doc.strokeColor('#d1d5db').lineWidth(0.5)
+         .moveTo(logosEndX, logoY + 3).lineTo(logosEndX, logoY + logoMaxH - 3).stroke();
+      logosEndX += 8;
+    }
+    if (projet.client_logo_path) {
+      const clientLogoPath = path.join(__dirname, '..', '..', projet.client_logo_path);
+      if (fs.existsSync(clientLogoPath)) {
+        try { doc.image(clientLogoPath, logosEndX, logoY, { fit: [logoMaxW, logoMaxH] }); logosEndX += logoMaxW + 8; } catch (e) { /* skip */ }
+      }
+    }
+
+    doc.strokeColor('#d1d5db').lineWidth(0.5)
+       .moveTo(logosEndX, logoY + 3).lineTo(logosEndX, logoY + logoMaxH - 3).stroke();
+    const textStartX = logosEndX + 10;
+    const textMaxW = headerRight - textStartX - 10;
+
+    let textY = headerTop + 10;
+    if (projet.client_nom) {
+      doc.fillColor('#111827').fontSize(12).font('Helvetica-Bold')
+         .text(projet.client_nom, textStartX, textY, { width: textMaxW }); textY += 15;
+    }
+    if (projet.projet_nom) {
+      doc.fillColor(gray).fontSize(7.5).font('Helvetica')
+         .text(projet.projet_nom, textStartX, textY, { width: textMaxW }); textY += 10;
+    }
+    if (projet.client_adresse || projet.projet_adresse) {
+      doc.fillColor(gray).fontSize(7).font('Helvetica')
+         .text([projet.client_adresse, projet.projet_adresse].filter(Boolean).join(' — '), textStartX, textY, { width: textMaxW }); textY += 10;
+    }
+    if (projet.projet_code) {
+      doc.fillColor(accent).fontSize(9).font('Helvetica-Bold').text(projet.projet_code, textStartX, textY);
+    }
+
+    // =========================================
+    // TITRE
+    // =========================================
+    yPos = headerTop + headerHeight + 14;
+    doc.fillColor(primary).fontSize(16).font('Helvetica-Bold')
+       .text(`Rapport de Coulée N° ${coulee.numero}`, 40, yPos, { align: 'center', width: pageWidth });
+    yPos += 20;
+    doc.fillColor(gray).fontSize(8).font('Helvetica')
+       .text(`Généré le ${formatDate(new Date())} à ${new Date().toLocaleTimeString('fr-FR')}`, 40, yPos, { align: 'center', width: pageWidth });
+    yPos += 16;
+
+    doc.strokeColor(primary).lineWidth(1.5)
+       .moveTo(40, yPos).lineTo(40 + pageWidth, yPos).stroke();
+    yPos += 12;
+
+    // =========================================
+    // HELPERS (section, row, new-page check)
+    // =========================================
+    const sectionTitle = (title, y) => {
+      doc.rect(40, y, pageWidth, 20).fill(primary);
+      doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold')
+         .text(title, 48, y + 5, { width: pageWidth - 16 });
+      return y + 26;
+    };
+
+    const infoRow = (label, value, y, col2) => {
+      const labelW = 130;
+      const baseX = col2 ? 40 + pageWidth / 2 + 5 : 48;
+      const valX = baseX + labelW;
+      const maxW = col2 ? pageWidth / 2 - 15 - labelW : pageWidth / 2 - 15 - labelW;
+      doc.fillColor(gray).fontSize(9).font('Helvetica').text(label, baseX, y, { width: labelW });
+      doc.fillColor('#111827').fontSize(9).font('Helvetica-Bold').text(value || '—', valX, y, { width: Math.max(maxW, 100) });
+    };
+
+    const infoRowColored = (label, value, y, col2, color) => {
+      const labelW = 130;
+      const baseX = col2 ? 40 + pageWidth / 2 + 5 : 48;
+      const valX = baseX + labelW;
+      const maxW = col2 ? pageWidth / 2 - 15 - labelW : pageWidth / 2 - 15 - labelW;
+      doc.fillColor(gray).fontSize(9).font('Helvetica').text(label, baseX, y, { width: labelW });
+      doc.fillColor(color).fontSize(9).font('Helvetica-Bold').text(value || '—', valX, y, { width: Math.max(maxW, 100) });
+    };
+
+    const checkNewPage = (needed) => {
+      if (yPos + needed > doc.page.height - 60) {
+        drawFooter();
+        doc.addPage();
+        yPos = 40;
+      }
+    };
+
+    // =========================================
+    // SECTION 1 — INFORMATIONS GÉNÉRALES
+    // =========================================
+    checkNewPage(90);
+    yPos = sectionTitle('INFORMATIONS GÉNÉRALES', yPos);
+
+    const statutLabels = {
+      en_cours: 'En cours',
+      pret_production: 'Prêt production',
+      en_production: 'En production',
+      termine: 'Terminée',
+      annule: 'Annulée'
+    };
+    const statutColors = {
+      en_cours: blue,
+      pret_production: green,
+      en_production: orange,
+      termine: gray,
+      annule: red
+    };
+
+    infoRow('N° Coulée :', coulee.numero, yPos, false);
+    infoRowColored('Statut :', statutLabels[coulee.statut] || coulee.statut, yPos, true, statutColors[coulee.statut] || gray);
+    yPos += 16;
+    infoRow('Démarrée le :', formatDateTime(coulee.created_at), yPos, false);
+    infoRow('Date de fin :', coulee.date_fin ? formatDateTime(coulee.date_fin) : 'En cours', yPos, true);
+    yPos += 16;
+    const operateur = coulee.operateur_prenom && coulee.operateur_nom
+      ? `${coulee.operateur_prenom} ${coulee.operateur_nom}` : '—';
+    infoRow('Opérateur :', operateur, yPos, false);
+    if (coulee.parametre_numero) {
+      infoRow('Preset Production :', coulee.parametre_numero, yPos, true);
+    }
+    yPos += 20;
+
+    // =========================================
+    // SECTION 2 — BOBINE UTILISÉE
+    // =========================================
+    checkNewPage(80);
+    yPos = sectionTitle('BOBINE UTILISÉE', yPos);
+
+    if (coulee.bobine_numero) {
+      infoRow('N° Bobine :', coulee.bobine_numero, yPos, false);
+      infoRow('Fournisseur :', coulee.bobine_fournisseur || '—', yPos, true);
+      yPos += 16;
+      infoRow('Épaisseur :', coulee.bobine_epaisseur ? `${coulee.bobine_epaisseur} mm` : '—', yPos, false);
+      infoRow('Largeur :', coulee.bobine_largeur ? `${coulee.bobine_largeur} mm` : '—', yPos, true);
+      yPos += 16;
+      infoRow('Poids :', coulee.bobine_poids ? `${new Intl.NumberFormat('fr-FR').format(coulee.bobine_poids)} kg` : '—', yPos, false);
+      infoRow('Norme :', coulee.bobine_norme || 'API 5L', yPos, true);
+    } else {
+      doc.fillColor(gray).fontSize(9).font('Helvetica-Oblique')
+         .text('Aucune bobine associée', 48, yPos);
+    }
+    yPos += 20;
+
+    // =========================================
+    // SECTION 3 — CHRONOLOGIE & RETARDS
+    // =========================================
+    checkNewPage(130);
+    yPos = sectionTitle('CHRONOLOGIE & RETARDS', yPos);
+
+    // Étape 1: Création
+    infoRow('Étape 1 — Création :', formatDateTime(coulee.created_at), yPos, false);
+    yPos += 18;
+
+    // Étape 2: Réception bobine
+    doc.strokeColor(border).lineWidth(0.5)
+       .moveTo(48, yPos - 4).lineTo(48 + pageWidth - 16, yPos - 4).stroke();
+
+    if (coulee.bobine_recue) {
+      infoRow('Étape 2 — Réception :', formatDateTime(coulee.date_reception), yPos, false);
+      const retardRec = coulee.retard_reception_minutes || 0;
+      const retardRecColor = retardRec >= 10 ? red : retardRec >= 5 ? orange : green;
+      infoRowColored('Délai réception :', formatDuree(retardRec), yPos, true, retardRecColor);
+      yPos += 16;
+      if (retardRec >= 10 && coulee.motif_reception_libelle) {
+        infoRow('Motif retard :', coulee.motif_reception_libelle, yPos, false);
+        if (coulee.motif_reception_categorie) {
+          infoRow('Catégorie :', coulee.motif_reception_categorie, yPos, true);
+        }
+        yPos += 16;
+      }
+      if (coulee.commentaire_reception) {
+        doc.fillColor(gray).fontSize(9).font('Helvetica').text('Commentaire :', 48, yPos);
+        doc.fillColor('#111827').fontSize(8).font('Helvetica')
+           .text(coulee.commentaire_reception, 178, yPos, { width: pageWidth - 150 });
+        yPos += 16;
+      }
+    } else {
+      infoRowColored('Étape 2 — Réception :', 'Non effectuée', yPos, false, gray);
+      yPos += 16;
+    }
+
+    // Étape 3: Installation
+    doc.strokeColor(border).lineWidth(0.5)
+       .moveTo(48, yPos - 4).lineTo(48 + pageWidth - 16, yPos - 4).stroke();
+
+    if (coulee.bobine_installee) {
+      infoRow('Étape 3 — Installation :', formatDateTime(coulee.date_installation), yPos, false);
+      const retardInst = coulee.retard_installation_minutes || 0;
+      const retardInstColor = retardInst >= 10 ? red : retardInst >= 5 ? orange : green;
+      infoRowColored('Délai installation :', formatDuree(retardInst), yPos, true, retardInstColor);
+      yPos += 16;
+      if (retardInst >= 10 && coulee.motif_installation_libelle) {
+        infoRow('Motif retard :', coulee.motif_installation_libelle, yPos, false);
+        if (coulee.motif_installation_categorie) {
+          infoRow('Catégorie :', coulee.motif_installation_categorie, yPos, true);
+        }
+        yPos += 16;
+      }
+      if (coulee.commentaire_installation) {
+        doc.fillColor(gray).fontSize(9).font('Helvetica').text('Commentaire :', 48, yPos);
+        doc.fillColor('#111827').fontSize(8).font('Helvetica')
+           .text(coulee.commentaire_installation, 178, yPos, { width: pageWidth - 150 });
+        yPos += 16;
+      }
+    } else {
+      infoRowColored('Étape 3 — Installation :', 'Non effectuée', yPos, false, gray);
+      yPos += 16;
+    }
+
+    // Étape 4: Checklist
+    doc.strokeColor(border).lineWidth(0.5)
+       .moveTo(48, yPos - 4).lineTo(48 + pageWidth - 16, yPos - 4).stroke();
+
+    if (coulee.checklist_validee) {
+      infoRowColored('Étape 4 — Checklist :', `Validée le ${formatDateTime(coulee.date_checklist)}`, yPos, false, green);
+      if (coulee.source_coulee_numero) {
+        infoRow('Source checklist :', `Coulée ${coulee.source_coulee_numero}`, yPos, true);
+      }
+    } else {
+      infoRowColored('Étape 4 — Checklist :', 'Non validée', yPos, false, gray);
+    }
+    yPos += 20;
+
+    // =========================================
+    // SECTION 4 — BILAN DES RETARDS
+    // =========================================
+    const retardRec = coulee.retard_reception_minutes || 0;
+    const retardInst = coulee.retard_installation_minutes || 0;
+    const retardTotal = retardRec + retardInst;
+
+    if (retardTotal > 0) {
+      checkNewPage(70);
+      yPos = sectionTitle('BILAN DES RETARDS', yPos);
+
+      // Tableau récapitulatif
+      const tableX = 48;
+      const tableW = pageWidth - 16;
+      const colW = tableW / 3;
+
+      // En-têtes du tableau
+      doc.rect(tableX, yPos, tableW, 18).fill('#fef3c7');
+      doc.fillColor(primary).fontSize(8).font('Helvetica-Bold');
+      doc.text('TYPE', tableX + 8, yPos + 5, { width: colW - 16 });
+      doc.text('DURÉE', tableX + colW + 8, yPos + 5, { width: colW - 16 });
+      doc.text('MOTIF', tableX + colW * 2 + 8, yPos + 5, { width: colW - 16 });
+      yPos += 18;
+
+      // Ligne Réception
+      doc.rect(tableX, yPos, tableW, 18).fillAndStroke('#ffffff', border);
+      doc.fillColor('#111827').fontSize(8).font('Helvetica');
+      doc.text('Réception', tableX + 8, yPos + 5, { width: colW - 16 });
+      const recColor = retardRec >= 10 ? red : retardRec >= 5 ? orange : green;
+      doc.fillColor(recColor).font('Helvetica-Bold')
+         .text(formatDuree(retardRec), tableX + colW + 8, yPos + 5, { width: colW - 16 });
+      doc.fillColor('#111827').font('Helvetica')
+         .text(coulee.motif_reception_libelle || '—', tableX + colW * 2 + 8, yPos + 5, { width: colW - 16 });
+      yPos += 18;
+
+      // Ligne Installation
+      doc.rect(tableX, yPos, tableW, 18).fillAndStroke('#ffffff', border);
+      doc.fillColor('#111827').fontSize(8).font('Helvetica');
+      doc.text('Installation', tableX + 8, yPos + 5, { width: colW - 16 });
+      const instColor = retardInst >= 10 ? red : retardInst >= 5 ? orange : green;
+      doc.fillColor(instColor).font('Helvetica-Bold')
+         .text(formatDuree(retardInst), tableX + colW + 8, yPos + 5, { width: colW - 16 });
+      doc.fillColor('#111827').font('Helvetica')
+         .text(coulee.motif_installation_libelle || '—', tableX + colW * 2 + 8, yPos + 5, { width: colW - 16 });
+      yPos += 18;
+
+      // Ligne Total
+      doc.rect(tableX, yPos, tableW, 20).fill('#fef3c7');
+      doc.fillColor(primary).fontSize(9).font('Helvetica-Bold');
+      doc.text('TOTAL', tableX + 8, yPos + 6, { width: colW - 16 });
+      const totalColor = retardTotal >= 10 ? red : retardTotal >= 5 ? orange : green;
+      doc.fillColor(totalColor).fontSize(10).font('Helvetica-Bold')
+         .text(formatDuree(retardTotal), tableX + colW + 8, yPos + 5, { width: colW - 16 });
+      yPos += 26;
+    }
+
+    // =========================================
+    // SECTION 5 — TUBES PRODUITS (si existants)
+    // =========================================
+    if (tubes.length > 0) {
+      checkNewPage(60 + tubes.length * 16);
+      yPos = sectionTitle(`TUBES PRODUITS (${tubes.length})`, yPos);
+
+      const tableX = 48;
+      const tableW = pageWidth - 16;
+      const cols = [tableW * 0.25, tableW * 0.2, tableW * 0.2, tableW * 0.15, tableW * 0.2];
+      const headers = ['N° Tube', 'Diamètre', 'Longueur', 'Statut', 'Date'];
+
+      // En-têtes
+      doc.rect(tableX, yPos, tableW, 18).fill('#f3f4f6');
+      let colX = tableX;
+      doc.fillColor(primary).fontSize(8).font('Helvetica-Bold');
+      headers.forEach((h, i) => {
+        doc.text(h, colX + 5, yPos + 5, { width: cols[i] - 10 });
+        colX += cols[i];
+      });
+      yPos += 18;
+
+      // Lignes
+      tubes.forEach((tube, idx) => {
+        checkNewPage(18);
+        const bgColor = idx % 2 === 0 ? '#ffffff' : '#fafafa';
+        doc.rect(tableX, yPos, tableW, 16).fillAndStroke(bgColor, border);
+        let cx = tableX;
+        doc.fillColor('#111827').fontSize(8).font('Helvetica');
+        doc.text(tube.numero || '—', cx + 5, yPos + 4, { width: cols[0] - 10 });
+        cx += cols[0];
+        doc.text(tube.diametre ? `${tube.diametre} mm` : '—', cx + 5, yPos + 4, { width: cols[1] - 10 });
+        cx += cols[1];
+        doc.text(tube.longueur ? `${tube.longueur} m` : '—', cx + 5, yPos + 4, { width: cols[2] - 10 });
+        cx += cols[2];
+        const tubeStatut = tube.statut === 'termine' ? 'Terminé' : tube.statut === 'en_cours' ? 'En cours' : tube.statut;
+        doc.text(tubeStatut || '—', cx + 5, yPos + 4, { width: cols[3] - 10 });
+        cx += cols[3];
+        doc.text(formatDateTime(tube.created_at), cx + 5, yPos + 4, { width: cols[4] - 10 });
+        yPos += 16;
+      });
+      yPos += 10;
+    }
+
+    // =========================================
+    // SECTION 6 — PARAMÈTRES DE PRODUCTION (si preset)
+    // =========================================
+    if (coulee.parametre_numero) {
+      checkNewPage(90);
+      yPos = sectionTitle(`PARAMÈTRES DE PRODUCTION — ${coulee.parametre_numero}`, yPos);
+
+      infoRow('Strip vitesse :', `${coulee.strip_vitesse_m || 0} m ${coulee.strip_vitesse_cm || 0} cm/min`, yPos, false);
+      infoRow('Milling Edge G :', `${coulee.milling_edge_gauche || 0} mm`, yPos, true);
+      yPos += 16;
+      infoRow('Pression rouleaux :', coulee.pression_rouleaux ? `${coulee.pression_rouleaux} ${coulee.pression_rouleaux_unite || 'tonnes'}` : '—', yPos, false);
+      infoRow('Milling Edge D :', `${coulee.milling_edge_droit || 0} mm`, yPos, true);
+      yPos += 16;
+      infoRow('Tack — Ampérage :', `${coulee.tack_amperage || 0} A`, yPos, false);
+      infoRow('Tack — Voltage :', `${coulee.tack_voltage || 0} V`, yPos, true);
+      yPos += 16;
+      infoRow('Tack — Vitesse :', `${coulee.tack_vitesse_m || 0} m ${coulee.tack_vitesse_cm || 0} cm/min`, yPos, false);
+      infoRow('Tack — Fréquence :', coulee.tack_frequence ? `${coulee.tack_frequence} Hz` : '—', yPos, true);
+      yPos += 16;
+      infoRow('Tack — Gaz :', `${coulee.tack_type_gaz || 'CO2'} (${coulee.tack_debit_gaz || '—'} L/min)`, yPos, false);
+      yPos += 16;
+      infoRow('Soudure vitesse :', `${coulee.soudure_vitesse_m || 0} m ${coulee.soudure_vitesse_cm || 0} cm/min`, yPos, false);
+      infoRow('Type fil :', coulee.soudure_type_fil || '—', yPos, true);
+      yPos += 16;
+      infoRow('Type flux :', coulee.soudure_type_flux || '—', yPos, false);
+      yPos += 20;
+    }
+
+    drawFooter();
+    doc.end();
+
+  } catch (error) {
+    console.error('Erreur GET /coulees/:id/pdf:', error);
+    res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+  }
+});
+
+// ============================================
 // DELETE /api/coulees/:id - Supprimer
 // ============================================
 router.delete('/:id', async (req, res) => {

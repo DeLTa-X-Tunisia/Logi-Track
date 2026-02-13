@@ -10,7 +10,7 @@ import {
   AlertTriangle, Package, Play, Square, ChevronRight,
   RefreshCw, CheckCircle, Circle, Truck, Wrench, ClipboardCheck,
   Settings, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Save, Edit3,
-  Cylinder
+  Cylinder, FileDown
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
@@ -155,6 +155,30 @@ export default function Coulees() {
     setShowDeleteModal(coulee);
   };
 
+  // Télécharger le rapport PDF d'une coulée
+  const downloadCouleePdf = async (couleeId, numero) => {
+    try {
+      const token = localStorage.getItem('logitrack_token');
+      const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3002/api`;
+      const response = await fetch(`${API_URL}/coulees/${couleeId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Erreur téléchargement');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `coulee_${numero}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast('Rapport PDF téléchargé', 'success');
+    } catch (error) {
+      showToast('Erreur lors du téléchargement du PDF', 'error');
+    }
+  };
+
   const handleDeleteConfirm = async (action) => {
     // action: 'disponible' ou 'prochaine'
     const coulee = showDeleteModal;
@@ -286,6 +310,7 @@ export default function Coulees() {
                 coulee={coulee} 
                 onView={() => openDetailModal(coulee)}
                 onDelete={() => handleDeleteRequest(coulee)}
+                onDownloadPdf={() => downloadCouleePdf(coulee.id, coulee.numero)}
               />
             ))}
           </div>
@@ -351,7 +376,7 @@ function StatCard({ label, value, color, icon: Icon }) {
   );
 }
 
-function CouleeRow({ coulee, onView, onDelete }) {
+function CouleeRow({ coulee, onView, onDelete, onDownloadPdf }) {
   const { t } = useTranslation();
   const statut = STATUTS[coulee.statut] || STATUTS.en_cours;
   const StatusIcon = statut.icon;
@@ -442,6 +467,9 @@ function CouleeRow({ coulee, onView, onDelete }) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={onDownloadPdf} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Télécharger PDF">
+            <FileDown className="w-5 h-5" />
+          </button>
           <button onClick={onView} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg">
             <Eye className="w-5 h-5" />
           </button>
@@ -484,8 +512,8 @@ function CouleeRow({ coulee, onView, onDelete }) {
                 </span>
               )}
               {hasRetard && (retardRec > 0 && retardInst > 0) && (
-                <span className={`flex items-center gap-1 font-bold ${getRetardColor(retardTotal)}`}>
-                  <AlertTriangle className="w-3.5 h-3.5" />
+                <span className={`flex items-center gap-1 font-bold text-sm ${getRetardColor(retardTotal)}`}>
+                  <AlertTriangle className="w-4 h-4" />
                   Total : {formatDuree(retardTotal)}
                 </span>
               )}
