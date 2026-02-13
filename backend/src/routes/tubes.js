@@ -209,7 +209,16 @@ router.post('/', async (req, res) => {
       coulee_id = activesCoulees[0].id;
       coulee_id_2 = activesCoulees[1].id;
     } else {
-      // Tube normal : auto-détecter la dernière coulée active si non fournie
+      // Tube normal : vérifier que la coulée fournie est encore active, sinon auto-détecter
+      if (coulee_id) {
+        const [checkCoulee] = await conn.query(
+          `SELECT id FROM coulees WHERE id = ? AND statut IN ('en_production','pret_production')`, [coulee_id]
+        );
+        if (checkCoulee.length === 0) {
+          // La coulée fournie n'est plus active, auto-détecter
+          coulee_id = null;
+        }
+      }
       if (!coulee_id) {
         const [lastCoulee] = await conn.query(
           `SELECT id FROM coulees WHERE statut IN ('en_production','pret_production') ORDER BY created_at DESC LIMIT 1`
