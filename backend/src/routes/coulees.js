@@ -185,7 +185,7 @@ router.get('/:id/pdf', async (req, res) => {
 
     // Récupérer les tubes produits dans cette coulée
     const [tubes] = await pool.query(`
-      SELECT t.numero, t.longueur, t.diametre, t.statut, t.created_at
+      SELECT t.numero, t.longueur, t.diametre_mm, t.diametre_pouce, t.epaisseur, t.poids, t.statut, t.created_at
       FROM tubes t WHERE t.coulee_id = ? ORDER BY t.created_at
     `, [req.params.id]);
 
@@ -546,7 +546,8 @@ router.get('/:id/pdf', async (req, res) => {
         let cx = tableX;
         doc.fillColor('#111827').fontSize(8).font('Helvetica');
         doc.text(tube.numero || '—', cx + 5, yPos + 4, { width: cols[0] - 10 }); cx += cols[0];
-        doc.text(tube.diametre ? `${tube.diametre} mm` : '—', cx + 5, yPos + 4, { width: cols[1] - 10 }); cx += cols[1];
+        const diamStr = tube.diametre_pouce ? `${tube.diametre_mm} mm (${tube.diametre_pouce}")` : `${tube.diametre_mm} mm`;
+        doc.text(diamStr, cx + 5, yPos + 4, { width: cols[1] - 10 }); cx += cols[1];
         doc.text(tube.longueur ? `${tube.longueur} m` : '—', cx + 5, yPos + 4, { width: cols[2] - 10 }); cx += cols[2];
         const tubeStatut = tube.statut === 'termine' ? 'Terminé' : tube.statut === 'en_cours' ? 'En cours' : tube.statut;
         doc.text(tubeStatut || '—', cx + 5, yPos + 4, { width: cols[3] - 10 }); cx += cols[3];
