@@ -131,11 +131,21 @@ export default function Coulees() {
     try {
       // Utiliser le numéro saisi ou le numéro auto
       const numero = numeroCoulee && numeroCoulee.trim() ? numeroCoulee.trim() : prochainNumero;
-      await api.post('/coulees', { numero, bobine_id: bobineId || null, parametre_id: parametreId || null });
+      const response = await api.post('/coulees', { numero, bobine_id: bobineId || null, parametre_id: parametreId || null });
       showToast(t('coulees.msg_creee'), 'success');
       setShowNewModal(false);
       fetchCoulees();
       fetchStats();
+
+      // Ouvrir directement le modal détail de la coulée créée
+      try {
+        const newId = response.data.id;
+        await fetchMotifsRetard();
+        await fetchPresets();
+        const detail = await api.get(`/coulees/${newId}`);
+        setSelectedCoulee(detail.data);
+        setShowDetailModal(true);
+      } catch (e) { console.error('Erreur ouverture détail:', e); }
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -897,12 +907,20 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
             active={!coulee.bobine_id}
           >
             {coulee.bobine_id ? (
-              <div className="flex items-center gap-4 bg-green-50 p-3 rounded-lg">
-                <Package className="w-8 h-8 text-green-600" />
-                <div>
-                  <div className="font-bold text-gray-900">{coulee.bobine_numero}</div>
-                  <div className="text-sm text-gray-600">
-                    {coulee.bobine_epaisseur}mm × {coulee.bobine_largeur}mm - {coulee.bobine_poids}kg
+              <div className="space-y-2">
+                {coulee.created_at && (
+                  <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg">
+                    <Clock className="w-4 h-4" />
+                    <span className="font-medium">Coulée démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-4 bg-green-50 p-3 rounded-lg">
+                  <Package className="w-8 h-8 text-green-600" />
+                  <div>
+                    <div className="font-bold text-gray-900">{coulee.bobine_numero}</div>
+                    <div className="text-sm text-gray-600">
+                      {coulee.bobine_epaisseur}mm × {coulee.bobine_largeur}mm - {coulee.bobine_poids}kg
+                    </div>
                   </div>
                 </div>
               </div>
