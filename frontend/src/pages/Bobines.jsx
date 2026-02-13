@@ -980,13 +980,13 @@ export default function Bobines() {
         </div>
       )}
 
-      {/* Modal Ajouter un fournisseur */}
+      {/* Modal Gérer les fournisseurs */}
       {showFournisseurModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full animate-fadeIn max-h-[80vh] flex flex-col">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900">
-                {t('bobines.ajouter_fournisseur', 'Ajouter un fournisseur')}
+                {t('bobines.gerer_fournisseurs', 'Gérer les fournisseurs')}
               </h3>
               <button
                 onClick={() => { setShowFournisseurModal(false); setNewFournisseurNom(''); }}
@@ -995,54 +995,93 @@ export default function Bobines() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Formulaire d'ajout */}
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (!newFournisseurNom.trim()) return;
               try {
                 const res = await fournisseursApi.create({ nom: newFournisseurNom.trim() });
                 const newFournisseur = res.data;
-                // Recharger la liste des fournisseurs
                 const fournisseursRes = await fournisseursApi.getAll();
                 setFournisseurs(fournisseursRes.data);
-                // Sélectionner automatiquement le nouveau fournisseur
                 setFormData(prev => ({ ...prev, fournisseur: newFournisseur.nom }));
-                setShowFournisseurModal(false);
                 setNewFournisseurNom('');
                 toast.success(t('bobines.fournisseur_ajoute', 'Fournisseur ajouté'));
               } catch (error) {
                 toast.error(error.response?.data?.error || t('common.erreur_sauvegarde'));
               }
-            }}>
-              <div className="p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('bobines.nom_fournisseur', 'Nom du fournisseur')}
-                </label>
+            }} className="p-4 border-b border-gray-100">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('bobines.nom_fournisseur', 'Nom du fournisseur')}
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  className="input w-full"
+                  className="input flex-1"
                   placeholder={t('bobines.placeholder_fournisseur')}
                   value={newFournisseurNom}
                   onChange={(e) => setNewFournisseurNom(e.target.value)}
                   autoFocus
                   required
                 />
-              </div>
-              <div className="p-4 border-t bg-gray-50 flex gap-3 rounded-b-xl">
-                <button
-                  type="button"
-                  onClick={() => { setShowFournisseurModal(false); setNewFournisseurNom(''); }}
-                  className="btn-secondary flex-1"
-                >
-                  {t('common.annuler')}
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary flex-1"
-                >
-                  {t('common.ajouter', 'Ajouter')}
+                <button type="submit" className="btn-primary px-4">
+                  <Plus size={18} />
                 </button>
               </div>
             </form>
+
+            {/* Liste des fournisseurs existants */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">
+                {t('bobines.fournisseurs_existants', 'Fournisseurs existants')} ({fournisseurs.length})
+              </p>
+              {fournisseurs.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  {t('bobines.aucun_fournisseur', 'Aucun fournisseur')}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {fournisseurs.map(f => (
+                    <div key={f.id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 group">
+                      <span className="text-sm font-medium text-gray-800">{f.nom}</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!window.confirm(t('bobines.confirmer_suppr_fournisseur', `Supprimer "${f.nom}" ?`))) return;
+                          try {
+                            await fournisseursApi.delete(f.id);
+                            const fournisseursRes = await fournisseursApi.getAll();
+                            setFournisseurs(fournisseursRes.data);
+                            // Si le fournisseur supprimé était sélectionné, le désélectionner
+                            if (formData.fournisseur === f.nom) {
+                              setFormData(prev => ({ ...prev, fournisseur: '' }));
+                            }
+                            toast.success(t('bobines.fournisseur_supprime', 'Fournisseur supprimé'));
+                          } catch (error) {
+                            toast.error(error.response?.data?.error || t('common.erreur_suppression'));
+                          }
+                        }}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                        title={t('common.supprimer')}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                type="button"
+                onClick={() => { setShowFournisseurModal(false); setNewFournisseurNom(''); }}
+                className="btn-secondary w-full"
+              >
+                {t('common.fermer')}
+              </button>
+            </div>
           </div>
         </div>
       )}
