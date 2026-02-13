@@ -17,6 +17,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const parametresRoutes = require('./routes/parametres');
 const projetParametresRoutes = require('./routes/projetParametres');
 const languesRoutes = require('./routes/langues');
+const fournisseursRoutes = require('./routes/fournisseurs');
 
 // Import du middleware d'authentification
 const { authenticateToken } = require('./middleware/auth');
@@ -74,6 +75,7 @@ app.use('/api/coulees', couleesRoutes); // Gestion des coulées (Heats)
 app.use('/api/checklist', authenticateToken, checklistRoutes); // Checklist Machine
 app.use('/api/checklist-periodique', checklistPeriodiqueRoutes); // Checklists périodiques
 app.use('/api/dashboard', authenticateToken, dashboardRoutes); // Dashboard stats
+app.use('/api/fournisseurs', fournisseursRoutes); // Gestion des fournisseurs
 
 // Socket.io - Gestion des connexions temps réel
 io.on('connection', (socket) => {

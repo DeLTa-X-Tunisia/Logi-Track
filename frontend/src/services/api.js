@@ -67,6 +67,15 @@ export const steelGradesApi = {
 };
 
 // ============================================
+// API Fournisseurs
+// ============================================
+export const fournisseursApi = {
+  getAll: () => api.get('/fournisseurs'),
+  create: (data) => api.post('/fournisseurs', data),
+  delete: (id) => api.delete(`/fournisseurs/${id}`),
+};
+
+// ============================================
 // API Coulées
 // ============================================
 export const couleesApi = {
