@@ -108,4 +108,28 @@ LogiTrack/
 
 ---
 
+## 📋 Version & Changelog
+
+### v1.2.0 — 13 Février 2026
+- **Coulées** : ouverture directe du modal détail après création d'une coulée
+- **Coulées** : affichage "Coulée démarrée le [date/heure]" dans l'étape 1 pour traçabilité du temps perdu
+- **Sidebar** : titre simplifié "PROJET – Nom du Client"
+
+### v1.1.0 — 13 Février 2026
+- **Sidebar** : restructuration — section "Projet" (Dashboard, Checklists) + section "Étapes de Production" (Bobines, Paramètres, Coulées, etc.)
+- **Paramètres de Production** : sélection du diamètre du tube (8" à 82") avec numérotation `PAR-{diamètre}-{seq}` et groupement par diamètre
+- **Fournisseurs** : gestion complète dans le formulaire Bobines — liste déroulante, ajout, suppression avec confirmation professionnelle
+
+### v1.0.0 — 13 Février 2026
+- **Initial release** : LogiTrack ERP complet
+- **Modules** : Dashboard, Bobines, Coulées (workflow 12 étapes), Tubes, Checklists (début de quart, hebdomadaire, mensuelle), Checklist Machine, Paramètres de Production
+- **Système i18n** : 4 langues (FR, EN, IT, AR) avec support RTL
+- **Authentification** : JWT, admin + opérateurs par code 6 chiffres
+- **PDF** : génération de rapports bobines
+- **Temps réel** : notifications Socket.io
+- **Paramètres du Projet** : logos, infos client, configuration globale
+- **LogiTrack-Launcher** : application bureau C# WinForms (.NET 8)
+
+---
+
 *Inspiré de PipeTrack, adapté pour le flux de production API 5L*
