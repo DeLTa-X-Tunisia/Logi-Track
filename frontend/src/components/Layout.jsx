@@ -94,14 +94,14 @@ export default function Layout({ children }) {
       <div className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-900/50" onClick={() => setSidebarOpen(false)} />
         <div className={`fixed inset-y-0 w-72 bg-white shadow-xl ${direction === 'rtl' ? 'right-0' : 'left-0'}`}>
-          <Sidebar navigationKeys={navigationKeys} checklistSubMenuKeys={checklistSubMenuKeys} location={location} onClose={() => setSidebarOpen(false)} isAdmin={isAdmin} t={t} />
+          <Sidebar navigationKeys={navigationKeys} checklistSubMenuKeys={checklistSubMenuKeys} location={location} onClose={() => setSidebarOpen(false)} isAdmin={isAdmin} t={t} projetParams={projetParams} />
         </div>
       </div>
 
       {/* Sidebar desktop */}
       <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col ${direction === 'rtl' ? 'right-0' : 'left-0'}`}>
         <div className={`flex flex-col flex-grow bg-white ${direction === 'rtl' ? 'border-l' : 'border-r'} border-gray-200`}>
-          <Sidebar navigationKeys={navigationKeys} checklistSubMenuKeys={checklistSubMenuKeys} location={location} isAdmin={isAdmin} t={t} />
+          <Sidebar navigationKeys={navigationKeys} checklistSubMenuKeys={checklistSubMenuKeys} location={location} isAdmin={isAdmin} t={t} projetParams={projetParams} />
         </div>
       </div>
 
@@ -252,17 +252,21 @@ export default function Layout({ children }) {
   );
 }
 
-function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAdmin, t }) {
+function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAdmin, t, projetParams }) {
   const [checklistOpen, setChecklistOpen] = useState(
     location.pathname.startsWith('/checklists') || location.pathname.startsWith('/checklist-periodique')
   );
 
   const isChecklistActive = location.pathname.startsWith('/checklists') || location.pathname.startsWith('/checklist-periodique');
 
-  // Séparer navigation avant et après le sub-menu checklists
-  const bobineIndex = navigationKeys.findIndex(n => n.key === 'nav.bobines');
-  const navBefore = navigationKeys.slice(0, bobineIndex + 1); // Dashboard + Bobines
-  const navAfter = navigationKeys.slice(bobineIndex + 1); // Coulées + rest
+  // Dashboard seul en haut, puis le reste = production
+  const dashboardItem = navigationKeys.find(n => n.key === 'nav.dashboard');
+  const productionItems = navigationKeys.filter(n => n.key !== 'nav.dashboard');
+
+  // Titre de section projet
+  const projetTitle = projetParams?.projet_nom
+    ? `${projetParams.projet_nom}${projetParams.client_nom ? ' – ' + projetParams.client_nom : ''}`
+    : 'Projet';
 
   return (
     <div className="flex flex-col h-full">
@@ -295,17 +299,17 @@ function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAd
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-        <p className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          {t('nav.etapes_production', 'Étapes de Production')}
+        {/* Section Projet */}
+        <p className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider truncate" title={projetTitle}>
+          {projetTitle}
         </p>
 
-        {/* Avant le sub-menu (Dashboard, Bobines) */}
-        {navBefore.map((item) => {
-          const isActive = location.pathname === item.href;
+        {/* Dashboard */}
+        {dashboardItem && (() => {
+          const isActive = location.pathname === dashboardItem.href;
           return (
             <Link
-              key={item.key}
-              to={item.href}
+              to={dashboardItem.href}
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
                 isActive
@@ -313,13 +317,13 @@ function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAd
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <item.icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : item.color || 'text-gray-400'}`} />
-              {t(item.key)}
+              <dashboardItem.icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : dashboardItem.color || 'text-gray-400'}`} />
+              {t(dashboardItem.key)}
             </Link>
           );
-        })}
+        })()}
 
-        {/* Sub-menu Checklists Générales */}
+        {/* Sub-menu Checklists Générales (juste après Dashboard) */}
         <div>
           <button
             onClick={() => setChecklistOpen(!checklistOpen)}
@@ -358,8 +362,13 @@ function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAd
           </div>
         </div>
 
-        {/* Après le sub-menu (Coulées + rest) */}
-        {navAfter.map((item) => {
+        {/* Section Étapes de Production */}
+        <p className="px-3 pt-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          {t('nav.etapes_production', 'Étapes de Production')}
+        </p>
+
+        {/* Items de production */}
+        {productionItems.map((item) => {
           const isActive = location.pathname === item.href;
           
           if (item.disabled) {
