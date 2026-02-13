@@ -86,6 +86,14 @@ export default function Tubes() {
   useEffect(() => {
     const urlCoulee = searchParams.get('coulee_id') || '';
     setFilterCoulee(urlCoulee);
+    // Auto-open Nouveau Tube modal when coming from "Démarrer Production"
+    if (searchParams.get('new_tube') === '1') {
+      setShowNewModal(true);
+      // Clean up URL param to avoid re-opening on refresh
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('new_tube');
+      window.history.replaceState({}, '', `${window.location.pathname}?${newParams}`);
+    }
   }, [searchParams]);
 
   // Fetch data
@@ -554,6 +562,13 @@ function NewTubeModal({ onClose, onCreated }) {
           {couleeActive ? (
             <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
               <span className="font-medium">Coulée active :</span>
+              {couleeActive.date_production && (
+                <span className="text-blue-500">
+                  {new Date(couleeActive.date_production).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                  {new Date(couleeActive.date_production).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {' — '}
+                </span>
+              )}
               N°{couleeActive.numero} {couleeActive.bobine_numero ? `(Bobine ${couleeActive.bobine_numero})` : ''}
             </div>
           ) : (

@@ -891,7 +891,7 @@ router.put('/:id/demarrer-production', async (req, res) => {
     const { id } = req.params;
 
     await pool.query(`
-      UPDATE coulees SET statut = 'en_production' WHERE id = ?
+      UPDATE coulees SET statut = 'en_production', date_production = NOW() WHERE id = ?
     `, [id]);
 
     res.json({ message: 'Production démarrée' });

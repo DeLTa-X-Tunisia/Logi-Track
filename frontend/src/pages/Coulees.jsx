@@ -1196,7 +1196,7 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
               <button
                 onClick={async () => {
                   await updateStep('demarrer-production');
-                  navigate(`/tubes?coulee_id=${coulee.id}`);
+                  navigate(`/tubes?coulee_id=${coulee.id}&new_tube=1`);
                 }}
                 disabled={loading}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 mx-auto"
