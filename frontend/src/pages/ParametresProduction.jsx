@@ -1,14 +1,14 @@
 /**
  * Page Paramètres de Production
  * CRUD complet avec 3 sections: Formage, Tackwelding, Soudure Finale
- * Numérotation PAR-001, PAR-002...
+ * Numérotation PAR-{diamètre}-{seq}
  */
 
 import { useState, useEffect } from 'react';
 import {
   Plus, Trash2, Search, Eye, X, Check, Edit3, Copy,
   Settings, Zap, Flame, ChevronDown, ChevronUp,
-  ToggleLeft, ToggleRight, Save, ArrowLeft
+  ToggleLeft, ToggleRight, Save, ArrowLeft, Circle
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
@@ -29,6 +29,22 @@ const FLUX_OPTIONS = [
   { value: 'FCAW', label: 'FCAW (Flux-Cored)' },
   { value: 'GMAW', label: 'GMAW (Gas Metal)' },
   { value: 'Autre', label: 'Autre' }
+];
+
+// Diamètres standards API 5L (pouces → mm)
+const DIAMETRES = [
+  { pouce: 8, mm: 219.1 }, { pouce: 10, mm: 273.1 }, { pouce: 12, mm: 323.9 },
+  { pouce: 14, mm: 355.6 }, { pouce: 16, mm: 406.4 }, { pouce: 18, mm: 457.2 },
+  { pouce: 20, mm: 508.0 }, { pouce: 22, mm: 558.8 }, { pouce: 24, mm: 609.6 },
+  { pouce: 26, mm: 660.4 }, { pouce: 28, mm: 711.2 }, { pouce: 30, mm: 762.0 },
+  { pouce: 32, mm: 812.8 }, { pouce: 34, mm: 863.6 }, { pouce: 36, mm: 914.4 },
+  { pouce: 38, mm: 965.2 }, { pouce: 40, mm: 1016.0 }, { pouce: 42, mm: 1066.8 },
+  { pouce: 44, mm: 1117.6 }, { pouce: 46, mm: 1168.4 }, { pouce: 48, mm: 1219.2 },
+  { pouce: 50, mm: 1270.0 }, { pouce: 52, mm: 1320.8 }, { pouce: 54, mm: 1371.6 },
+  { pouce: 56, mm: 1422.4 }, { pouce: 58, mm: 1473.2 }, { pouce: 60, mm: 1524.0 },
+  { pouce: 64, mm: 1625.6 }, { pouce: 66, mm: 1676.4 }, { pouce: 68, mm: 1727.2 },
+  { pouce: 72, mm: 1828.8 }, { pouce: 76, mm: 1930.4 }, { pouce: 80, mm: 2032.0 },
+  { pouce: 82, mm: 2082.8 },
 ];
 
 const DEFAULT_HEADS = [
@@ -65,6 +81,8 @@ export default function ParametresProduction() {
 
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
   const [heads, setHeads] = useState(JSON.parse(JSON.stringify(DEFAULT_HEADS)));
+  const [selectedDiametre, setSelectedDiametre] = useState(null);
+  const [showDiametreModal, setShowDiametreModal] = useState(false);
 
   // Section accordion state
   const [openSections, setOpenSections] = useState({ formage: true, tack: true, soudure: true });
@@ -84,15 +102,23 @@ export default function ParametresProduction() {
     }
   };
 
-  const fetchProchainNumero = async () => {
+  const fetchProchainNumero = async (diametre) => {
     try {
-      const res = await api.get('/parametres/prochain-numero');
+      const params = diametre ? `?diametre=${diametre}` : '';
+      const res = await api.get(`/parametres/prochain-numero${params}`);
       setProchainNumero(res.data.numero);
     } catch (e) { console.error(e); }
   };
 
-  const openNew = async () => {
-    await fetchProchainNumero();
+  const openNew = () => {
+    setSelectedDiametre(null);
+    setShowDiametreModal(true);
+  };
+
+  const confirmDiametre = async (diametre) => {
+    setSelectedDiametre(diametre);
+    setShowDiametreModal(false);
+    await fetchProchainNumero(diametre);
     setFormData({ ...EMPTY_FORM });
     setHeads(JSON.parse(JSON.stringify(DEFAULT_HEADS)));
     setEditingId(null);
@@ -100,6 +126,7 @@ export default function ParametresProduction() {
   };
 
   const openEdit = (preset) => {
+    setSelectedDiametre(preset.diametre_pouce || null);
     setFormData({
       strip_vitesse_m: preset.strip_vitesse_m || 0,
       strip_vitesse_cm: preset.strip_vitesse_cm || 0,
@@ -133,7 +160,7 @@ export default function ParametresProduction() {
   const handleSubmit = async () => {
     try {
       setLoading(true);
-      const payload = { ...formData, heads, numero: prochainNumero };
+      const payload = { ...formData, heads, numero: prochainNumero, diametre_pouce: selectedDiametre };
 
       if (editingId) {
         await api.put(`/parametres/${editingId}`, payload);
@@ -196,8 +223,18 @@ export default function ParametresProduction() {
 
   const filtered = presets.filter(p =>
     p.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.notes && p.notes.toLowerCase().includes(searchQuery.toLowerCase()))
+    (p.notes && p.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (p.diametre_pouce && `${p.diametre_pouce}"`.includes(searchQuery))
   );
+
+  // Grouper par diamètre
+  const grouped = {};
+  filtered.forEach(p => {
+    const key = p.diametre_pouce || 0;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+  const sortedKeys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
 
   return (
     <div className="space-y-6">
@@ -241,20 +278,53 @@ export default function ParametresProduction() {
           <p className="text-gray-500">Aucun preset trouvé</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((preset) => (
-            <PresetCard
-              key={preset.id}
-              preset={preset}
-              onView={() => setShowDetail(preset)}
-              onEdit={() => openEdit(preset)}
-              onDelete={() => handleDelete(preset)}
-              onDuplicate={() => handleDuplicate(preset)}
-              formatVitesse={formatVitesse}
-              formatGaz={formatGaz}
-            />
-          ))}
+        <div className="space-y-6">
+          {sortedKeys.map(key => {
+            const diam = DIAMETRES.find(d => d.pouce === key);
+            return (
+              <div key={key}>
+                {/* Diameter group header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                    key === 0 
+                      ? 'bg-gray-100 text-gray-600' 
+                      : 'bg-violet-100 text-violet-700'
+                  }`}>
+                    <Circle className="w-3 h-3" />
+                    {key === 0 
+                      ? 'Sans diamètre' 
+                      : `Ø ${key}" (${diam ? diam.mm.toFixed(1) : key * 25.4} mm)`
+                    }
+                  </div>
+                  <div className="flex-1 h-px bg-gray-200"></div>
+                  <span className="text-xs text-gray-400">{grouped[key].length} preset{grouped[key].length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {grouped[key].map((preset) => (
+                    <PresetCard
+                      key={preset.id}
+                      preset={preset}
+                      onView={() => setShowDetail(preset)}
+                      onEdit={() => openEdit(preset)}
+                      onDelete={() => handleDelete(preset)}
+                      onDuplicate={() => handleDuplicate(preset)}
+                      formatVitesse={formatVitesse}
+                      formatGaz={formatGaz}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {/* Modal Sélection Diamètre */}
+      {showDiametreModal && (
+        <DiametreModal
+          onSelect={confirmDiametre}
+          onClose={() => setShowDiametreModal(false)}
+        />
       )}
 
       {/* Modal Création/Edition */}
@@ -262,6 +332,7 @@ export default function ParametresProduction() {
         <PresetModal
           editingId={editingId}
           numero={prochainNumero}
+          diametre={selectedDiametre}
           formData={formData}
           setFormData={setFormData}
           heads={heads}
@@ -306,6 +377,11 @@ function PresetCard({ preset, onView, onEdit, onDelete, onDuplicate, formatVites
           </div>
           <div>
             <span className="font-bold text-gray-900 text-lg">{preset.numero}</span>
+            {preset.diametre_pouce && (
+              <span className="ml-2 text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                Ø {preset.diametre_pouce}"
+              </span>
+            )}
             {preset.nb_coulees > 0 && (
               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                 {preset.nb_coulees} coulée{preset.nb_coulees > 1 ? 's' : ''}
@@ -417,10 +493,11 @@ function VitesseInput({ label, mValue, cmValue, onMChange, onCmChange }) {
 /* ============================================
  * Modal Création / Édition
  * ============================================ */
-function PresetModal({ editingId, numero, formData, setFormData, heads, updateHead, openSections, toggleSection, onSubmit, onClose, loading }) {
+function PresetModal({ editingId, numero, diametre, formData, setFormData, heads, updateHead, openSections, toggleSection, onSubmit, onClose, loading }) {
   const update = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
   const idHeads = heads.filter(h => h.type === 'ID');
   const odHeads = heads.filter(h => h.type === 'OD');
+  const diamInfo = DIAMETRES.find(d => d.pouce === diametre);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
@@ -431,7 +508,14 @@ function PresetModal({ editingId, numero, formData, setFormData, heads, updateHe
             <h2 className="text-xl font-bold text-gray-900">
               {editingId ? 'Modifier' : 'Nouveau'} Preset
             </h2>
-            <p className="text-sm text-violet-600 font-mono font-medium">{numero}</p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm text-violet-600 font-mono font-medium">{numero}</p>
+              {diametre && (
+                <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                  Ø {diametre}" ({diamInfo ? diamInfo.mm.toFixed(1) : diametre * 25.4} mm)
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-violet-100 rounded-lg">
             <X className="w-5 h-5" />
@@ -767,6 +851,7 @@ function SectionHeader({ title, icon, color, open, onToggle }) {
 function DetailModal({ preset, onClose, formatVitesse, formatGaz }) {
   const idHeads = (preset.heads || []).filter(h => h.type === 'ID');
   const odHeads = (preset.heads || []).filter(h => h.type === 'OD');
+  const diamInfo = DIAMETRES.find(d => d.pouce === preset.diametre_pouce);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
@@ -774,7 +859,14 @@ function DetailModal({ preset, onClose, formatVitesse, formatGaz }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-violet-50 rounded-t-2xl">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{preset.numero}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-gray-900">{preset.numero}</h2>
+              {preset.diametre_pouce && (
+                <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                  Ø {preset.diametre_pouce}" ({diamInfo ? diamInfo.mm.toFixed(1) : preset.diametre_pouce * 25.4} mm)
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500">
               Créé par {preset.createur_prenom} {preset.createur_nom} le {new Date(preset.created_at).toLocaleDateString('fr-FR')}
             </p>
@@ -861,6 +953,63 @@ function DetailModal({ preset, onClose, formatVitesse, formatGaz }) {
         <div className="flex justify-end px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
           <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
             Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================
+ * Modal Sélection Diamètre
+ * ============================================ */
+function DiametreModal({ onSelect, onClose }) {
+  const [selected, setSelected] = useState(null);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        {/* Header */}
+        <div className="px-6 py-4 border-b bg-violet-50 rounded-t-2xl">
+          <h2 className="text-lg font-bold text-gray-900">Sélectionner le diamètre du tube</h2>
+          <p className="text-sm text-gray-500 mt-1">Le preset sera associé à ce diamètre</p>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+            {DIAMETRES.map(d => (
+              <button
+                key={d.pouce}
+                onClick={() => setSelected(d.pouce)}
+                className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all text-center ${
+                  selected === d.pouce
+                    ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-200'
+                    : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50/50'
+                }`}
+              >
+                <span className="text-lg font-bold text-gray-900">{d.pouce}"</span>
+                <span className="text-xs text-gray-500">{d.mm.toFixed(1)} mm</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={() => selected && onSelect(selected)}
+            disabled={!selected}
+            className="flex items-center gap-2 px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Check className="w-4 h-4" />
+            Confirmer
           </button>
         </div>
       </div>

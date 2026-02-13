@@ -43,14 +43,34 @@ router.get('/', async (req, res) => {
 // ============================================
 router.get('/prochain-numero', async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT numero FROM parametres_production ORDER BY id DESC LIMIT 1
-    `);
-    let next = 'PAR-001';
-    if (rows.length > 0) {
-      const lastNum = parseInt(rows[0].numero.replace('PAR-', ''), 10);
-      next = `PAR-${String(lastNum + 1).padStart(3, '0')}`;
+    const { diametre } = req.query;
+    let next;
+
+    if (diametre) {
+      // Format PAR-{diametre}-{seq}
+      const prefix = `PAR-${diametre}-`;
+      const [rows] = await pool.query(
+        `SELECT numero FROM parametres_production WHERE numero LIKE ? ORDER BY id DESC LIMIT 1`,
+        [`${prefix}%`]
+      );
+      let seq = 1;
+      if (rows.length > 0) {
+        const match = rows[0].numero.match(/PAR-\d+-?(\d+)$/);
+        if (match) seq = parseInt(match[1], 10) + 1;
+      }
+      next = `${prefix}${seq}`;
+    } else {
+      // Legacy format PAR-XXX
+      const [rows] = await pool.query(
+        `SELECT numero FROM parametres_production WHERE numero REGEXP '^PAR-[0-9]{3}$' ORDER BY id DESC LIMIT 1`
+      );
+      let num = 1;
+      if (rows.length > 0) {
+        num = parseInt(rows[0].numero.replace('PAR-', ''), 10) + 1;
+      }
+      next = `PAR-${String(num).padStart(3, '0')}`;
     }
+
     res.json({ numero: next });
   } catch (error) {
     console.error('Erreur prochain-numero:', error);
@@ -93,7 +113,7 @@ router.post('/', async (req, res) => {
     await conn.beginTransaction();
 
     const {
-      numero,
+      numero, diametre_pouce,
       // Formage
       strip_vitesse_m, strip_vitesse_cm,
       milling_edge_gauche, milling_edge_droit,
@@ -116,7 +136,7 @@ router.post('/', async (req, res) => {
 
     const [result] = await conn.query(`
       INSERT INTO parametres_production (
-        numero,
+        numero, diametre_pouce,
         strip_vitesse_m, strip_vitesse_cm,
         milling_edge_gauche, milling_edge_droit,
         pression_rouleaux, pression_rouleaux_unite,
@@ -126,9 +146,9 @@ router.post('/', async (req, res) => {
         soudure_vitesse_m, soudure_vitesse_cm,
         soudure_type_fil, soudure_type_flux,
         notes, created_by, createur_nom, createur_prenom
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      numero,
+      numero, diametre_pouce || null,
       strip_vitesse_m || 0, strip_vitesse_cm || 0,
       milling_edge_gauche || 0, milling_edge_droit || 0,
       pression_rouleaux || null, pression_rouleaux_unite || 'tonnes',
@@ -284,20 +304,37 @@ router.post('/:id/dupliquer', async (req, res) => {
       return res.status(404).json({ error: 'Preset source non trouvé' });
     }
 
-    // Générer le prochain numéro
-    const [last] = await conn.query(`SELECT numero FROM parametres_production ORDER BY id DESC LIMIT 1`);
-    let nextNum = 'PAR-001';
-    if (last.length > 0) {
-      const n = parseInt(last[0].numero.replace('PAR-', ''), 10);
-      nextNum = `PAR-${String(n + 1).padStart(3, '0')}`;
+    // Générer le prochain numéro basé sur le diamètre du preset source
+    const s = source[0];
+    let nextNum;
+    if (s.diametre_pouce) {
+      const prefix = `PAR-${s.diametre_pouce}-`;
+      const [last] = await conn.query(
+        `SELECT numero FROM parametres_production WHERE numero LIKE ? ORDER BY id DESC LIMIT 1`,
+        [`${prefix}%`]
+      );
+      let seq = 1;
+      if (last.length > 0) {
+        const match = last[0].numero.match(/PAR-\d+-?(\d+)$/);
+        if (match) seq = parseInt(match[1], 10) + 1;
+      }
+      nextNum = `${prefix}${seq}`;
+    } else {
+      const [last] = await conn.query(
+        `SELECT numero FROM parametres_production WHERE numero REGEXP '^PAR-[0-9]{3}$' ORDER BY id DESC LIMIT 1`
+      );
+      let num = 1;
+      if (last.length > 0) {
+        num = parseInt(last[0].numero.replace('PAR-', ''), 10) + 1;
+      }
+      nextNum = `PAR-${String(num).padStart(3, '0')}`;
     }
 
-    const s = source[0];
     const created_by = req.user?.operateurId || req.user?.userId || null;
 
     const [result] = await conn.query(`
       INSERT INTO parametres_production (
-        numero, strip_vitesse_m, strip_vitesse_cm,
+        numero, diametre_pouce, strip_vitesse_m, strip_vitesse_cm,
         milling_edge_gauche, milling_edge_droit,
         pression_rouleaux, pression_rouleaux_unite,
         tack_amperage, tack_voltage, tack_vitesse_m, tack_vitesse_cm,
@@ -305,9 +342,9 @@ router.post('/:id/dupliquer', async (req, res) => {
         soudure_vitesse_m, soudure_vitesse_cm,
         soudure_type_fil, soudure_type_flux,
         notes, created_by, createur_nom, createur_prenom
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      nextNum, s.strip_vitesse_m, s.strip_vitesse_cm,
+      nextNum, s.diametre_pouce || null, s.strip_vitesse_m, s.strip_vitesse_cm,
       s.milling_edge_gauche, s.milling_edge_droit,
       s.pression_rouleaux, s.pression_rouleaux_unite,
       s.tack_amperage, s.tack_voltage, s.tack_vitesse_m, s.tack_vitesse_cm,
