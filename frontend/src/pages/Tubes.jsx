@@ -335,7 +335,7 @@ function TubeCard({ tube, onClick, onDelete }) {
                 {hasSaute && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-1"><WifiOff className="w-3 h-3" />Offline</span>}
               </div>
               <p className="text-sm text-gray-500">
-                Coulée {tube.coulee_numero} · ⌀{tube.diametre_mm}mm {tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}
+                Coulée {tube.coulee_numero}{tube.coulee_numero_2 ? ` → ${tube.coulee_numero_2}` : ''} · ⌀{tube.diametre_mm}mm {tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}
               </p>
             </div>
           </div>
@@ -440,6 +440,7 @@ function NewTubeModal({ onClose, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [prochainNumero, setProchainNumero] = useState('');
   const [couleeActive, setCouleeActive] = useState(null);
+  const [nextCoulee, setNextCoulee] = useState(null); // 2e coulée pour CW
   const [preset, setPreset] = useState(null); // preset de la coulée
   const [editingParams, setEditingParams] = useState(false);
   const [openSections, setOpenSections] = useState({ formage: true, tack: false, soudure: false });
@@ -455,13 +456,20 @@ function NewTubeModal({ onClose, onCreated }) {
     notes: ''
   });
 
-  // Charger la dernière coulée active, le prochain numéro et le preset
+  // Charger les coulées actives, le prochain numéro et le preset
   useEffect(() => {
     api.get('/coulees')
       .then(r => {
-        const active = r.data.find(c => c.statut === 'en_production' || c.statut === 'pret_production');
+        // Trouver toutes les coulées en production (triées par date)
+        const enProduction = r.data
+          .filter(c => c.statut === 'en_production')
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        // Fallback sur pret_production si aucune en_production
+        const active = enProduction[0] || r.data.find(c => c.statut === 'pret_production');
+        const next = enProduction.length >= 2 ? enProduction[1] : null;
         if (active) {
           setCouleeActive(active);
+          setNextCoulee(next);
           // Charger le prochain numéro (global, pas par coulée)
           api.get('/tubes/prochain-numero')
             .then(r2 => {
@@ -521,6 +529,10 @@ function NewTubeModal({ onClose, onCreated }) {
     }
     if (!couleeActive) {
       showToast('Aucune coulée active trouvée', 'error');
+      return;
+    }
+    if (form.type_tube === 'cross_welding' && !nextCoulee) {
+      showToast('Cross Welding impossible : aucune prochaine coulée en production', 'error');
       return;
     }
     setLoading(true);
@@ -612,6 +624,31 @@ function NewTubeModal({ onClose, onCreated }) {
               </button>
             </div>
           </div>
+
+          {/* CW Info / Warning */}
+          {form.type_tube === 'cross_welding' && (
+            nextCoulee ? (
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Cross Welding : Coulée N°{couleeActive?.numero} → N°{nextCoulee.numero}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    Ce tube sera rattaché aux deux coulées. La coulée N°{couleeActive?.numero} sera automatiquement clôturée.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <AlertTriangle className="w-4 h-4 mt-0.5 text-red-500 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Cross Welding impossible</p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    Aucune prochaine coulée engagée (en production). Lancez la production d'une 2ᵉ coulée avant de créer un tube CW.
+                  </p>
+                </div>
+              </div>
+            )
+          )}
 
           {/* Paramètres de Production */}
           <div className="border border-violet-200 rounded-lg overflow-hidden">
@@ -899,7 +936,7 @@ function NewTubeModal({ onClose, onCreated }) {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (form.type_tube === 'cross_welding' && !nextCoulee)}
               className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
               <Play className="w-4 h-4" /> {loading ? 'Création...' : 'Créer le Tube'}
@@ -1030,7 +1067,7 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
             <div>
               <h2 className="text-lg font-bold text-gray-900">Tube N°{tube.numero}</h2>
               <p className="text-sm text-gray-500">
-                Coulée {tube.coulee_numero} · ⌀{tube.diametre_mm}mm {tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}
+                Coulée {tube.coulee_numero}{tube.coulee_numero_2 ? ` → ${tube.coulee_numero_2}` : ''} · ⌀{tube.diametre_mm}mm {tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}
                 {tube.type_tube === 'cross_welding' ? ' · Cross Welding' : ''}
               </p>
             </div>

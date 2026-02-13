@@ -101,10 +101,12 @@ router.get('/', async (req, res) => {
   try {
     const { statut, etape, coulee_id, search } = req.query;
     let query = `
-      SELECT t.*, c.numero as coulee_numero, b.numero as bobine_numero, b.epaisseur as bobine_epaisseur,
+      SELECT t.*, c.numero as coulee_numero, c2.numero as coulee_numero_2,
+             b.numero as bobine_numero, b.epaisseur as bobine_epaisseur,
              pp.numero as parametre_numero
       FROM tubes t
       LEFT JOIN coulees c ON t.coulee_id = c.id
+      LEFT JOIN coulees c2 ON t.coulee_id_2 = c2.id
       LEFT JOIN bobines b ON c.bobine_id = b.id
       LEFT JOIN parametres_production pp ON t.parametre_id = pp.id
       WHERE 1=1
@@ -140,12 +142,14 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [tubes] = await pool.query(`
-      SELECT t.*, c.numero as coulee_numero, c.parametre_id as coulee_parametre_id,
+      SELECT t.*, c.numero as coulee_numero, c2.numero as coulee_numero_2,
+             c.parametre_id as coulee_parametre_id,
              b.numero as bobine_numero, b.epaisseur as bobine_epaisseur,
              b.poids as bobine_poids, b.largeur as bobine_largeur,
              pp.numero as parametre_numero
       FROM tubes t
       LEFT JOIN coulees c ON t.coulee_id = c.id
+      LEFT JOIN coulees c2 ON t.coulee_id_2 = c2.id
       LEFT JOIN bobines b ON c.bobine_id = b.id
       LEFT JOIN parametres_production pp ON t.parametre_id = pp.id
       WHERE t.id = ?
@@ -179,23 +183,44 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'numero et diametre_mm sont requis' });
     }
 
-    // Auto-détecter la dernière coulée active si non fournie
-    if (!coulee_id) {
-      const [lastCoulee] = await conn.query(
-        `SELECT id FROM coulees WHERE statut IN ('en_production','pret_production') ORDER BY created_at DESC LIMIT 1`
-      );
-      if (lastCoulee.length === 0) { conn.release(); return res.status(400).json({ error: 'Aucune coulée active trouvée' }); }
-      coulee_id = lastCoulee[0].id;
-    }
-
-    const [coulee] = await conn.query('SELECT id, parametre_id FROM coulees WHERE id = ?', [coulee_id]);
-    if (coulee.length === 0) { conn.release(); return res.status(404).json({ error: 'Coulée non trouvée' }); }
-
     // Valider type_tube
     if (type_tube && !['normal', 'cross_welding'].includes(type_tube)) {
       conn.release();
       return res.status(400).json({ error: 'type_tube doit être "normal" ou "cross_welding"' });
     }
+
+    // Pour cross welding, on a besoin de la coulée courante ET de la prochaine
+    let coulee_id_2 = null;
+
+    if (type_tube === 'cross_welding') {
+      // Récupérer les deux coulées en production (courante + suivante)
+      const [activesCoulees] = await conn.query(
+        `SELECT id, numero, statut, bobine_id FROM coulees WHERE statut = 'en_production' ORDER BY created_at ASC`
+      );
+
+      if (activesCoulees.length < 2) {
+        conn.release();
+        return res.status(400).json({ 
+          error: 'Cross Welding impossible : la prochaine coulée doit être engagée (en production) avant de créer un tube CW.' 
+        });
+      }
+
+      // La première est la coulée courante, la deuxième est la prochaine
+      coulee_id = activesCoulees[0].id;
+      coulee_id_2 = activesCoulees[1].id;
+    } else {
+      // Tube normal : auto-détecter la dernière coulée active si non fournie
+      if (!coulee_id) {
+        const [lastCoulee] = await conn.query(
+          `SELECT id FROM coulees WHERE statut IN ('en_production','pret_production') ORDER BY created_at DESC LIMIT 1`
+        );
+        if (lastCoulee.length === 0) { conn.release(); return res.status(400).json({ error: 'Aucune coulée active trouvée' }); }
+        coulee_id = lastCoulee[0].id;
+      }
+    }
+
+    const [coulee] = await conn.query('SELECT id, parametre_id FROM coulees WHERE id = ?', [coulee_id]);
+    if (coulee.length === 0) { conn.release(); return res.status(404).json({ error: 'Coulée non trouvée' }); }
 
     // Gérer les paramètres de production
     let finalParametreId = parametre_id || coulee[0].parametre_id || null;
@@ -253,13 +278,23 @@ router.post('/', async (req, res) => {
     const operateur_prenom = req.user?.prenom || null;
 
     const [result] = await conn.query(`
-      INSERT INTO tubes (coulee_id, type_tube, parametre_id, numero, diametre_mm, diametre_pouce, longueur, epaisseur, 
+      INSERT INTO tubes (coulee_id, coulee_id_2, type_tube, parametre_id, numero, diametre_mm, diametre_pouce, longueur, epaisseur, 
                          operateur_id, operateur_nom, operateur_prenom, notes, etape_courante, statut)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'en_production')
-    `, [coulee_id, type_tube || 'normal', finalParametreId, numero, diametre_mm, diametre_pouce || null, longueur || null, 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'en_production')
+    `, [coulee_id, coulee_id_2, type_tube || 'normal', finalParametreId, numero, diametre_mm, diametre_pouce || null, longueur || null, 
         epaisseur || null, operateur_id, operateur_nom, operateur_prenom, notes || null]);
 
     const tubeId = result.insertId;
+
+    // Cross Welding : fermer automatiquement la coulée précédente (coulée 1)
+    if (type_tube === 'cross_welding' && coulee_id) {
+      // Libérer la bobine de la coulée précédente
+      const [prevCoulee] = await conn.query('SELECT bobine_id FROM coulees WHERE id = ?', [coulee_id]);
+      if (prevCoulee.length > 0 && prevCoulee[0].bobine_id) {
+        await conn.query('UPDATE bobines SET statut = ? WHERE id = ?', ['epuisee', prevCoulee[0].bobine_id]);
+      }
+      await conn.query(`UPDATE coulees SET statut = 'termine', date_fin = NOW() WHERE id = ?`, [coulee_id]);
+    }
 
     // Pré-générer les 12 étapes (étape 1 en 'en_cours')
     const etapeValues = ETAPES_PRODUCTION.map(e => [
@@ -277,8 +312,9 @@ router.post('/', async (req, res) => {
     await conn.commit();
 
     const [newTube] = await pool.query(`
-      SELECT t.*, c.numero as coulee_numero, pp.numero as parametre_numero FROM tubes t
+      SELECT t.*, c.numero as coulee_numero, c2.numero as coulee_numero_2, pp.numero as parametre_numero FROM tubes t
       LEFT JOIN coulees c ON t.coulee_id = c.id
+      LEFT JOIN coulees c2 ON t.coulee_id_2 = c2.id
       LEFT JOIN parametres_production pp ON t.parametre_id = pp.id
       WHERE t.id = ?
     `, [tubeId]);
