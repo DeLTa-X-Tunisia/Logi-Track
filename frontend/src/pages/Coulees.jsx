@@ -1212,7 +1212,7 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
               <h3 className="font-bold text-orange-700 text-lg">{t('coulees.production_en_cours')}</h3>
               <div className="flex items-center justify-center gap-3 mt-4">
                 <button
-                  onClick={() => navigate(`/tubes?coulee_id=${coulee.id}`)}
+                  onClick={() => navigate('/tubes')}
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   <Cylinder className="w-5 h-5" /> {t('coulees.voir_tubes')}
