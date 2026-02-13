@@ -85,16 +85,9 @@ router.get('/stats', async (req, res) => {
 // ============================================
 router.get('/prochain-numero', async (req, res) => {
   try {
-    const { coulee_id } = req.query;
-    if (coulee_id) {
-      const [last] = await pool.query(
-        'SELECT MAX(CAST(numero AS UNSIGNED)) as max_num FROM tubes WHERE coulee_id = ?', [coulee_id]
-      );
-      res.json({ numero: (last[0].max_num || 0) + 1 });
-    } else {
-      const [last] = await pool.query('SELECT MAX(CAST(numero AS UNSIGNED)) as max_num FROM tubes');
-      res.json({ numero: (last[0].max_num || 0) + 1 });
-    }
+    // Toujours utiliser le MAX global pour garantir la continuité de la séquence
+    const [last] = await pool.query('SELECT MAX(CAST(numero AS UNSIGNED)) as max_num FROM tubes');
+    res.json({ numero: (last[0].max_num || 0) + 1 });
   } catch (error) {
     console.error('Erreur prochain-numero:', error);
     res.status(500).json({ error: 'Erreur prochain numéro' });

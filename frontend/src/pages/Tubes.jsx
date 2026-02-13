@@ -84,15 +84,20 @@ export default function Tubes() {
 
   // Sync filter with URL changes (navigation from Coulées)
   useEffect(() => {
-    const urlCoulee = searchParams.get('coulee_id') || '';
-    setFilterCoulee(urlCoulee);
+    const isNewTube = searchParams.get('new_tube') === '1';
+    // Ne pas filtrer par coulée quand on vient de Démarrer Production
+    // pour afficher tous les tubes en cours
+    if (!isNewTube) {
+      const urlCoulee = searchParams.get('coulee_id') || '';
+      setFilterCoulee(urlCoulee);
+    } else {
+      setFilterCoulee('');
+    }
     // Auto-open Nouveau Tube modal when coming from "Démarrer Production"
-    if (searchParams.get('new_tube') === '1') {
+    if (isNewTube) {
       setShowNewModal(true);
-      // Clean up URL param to avoid re-opening on refresh
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('new_tube');
-      window.history.replaceState({}, '', `${window.location.pathname}?${newParams}`);
+      // Clean up URL params to avoid re-opening on refresh
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
 
@@ -457,8 +462,8 @@ function NewTubeModal({ onClose, onCreated }) {
         const active = r.data.find(c => c.statut === 'en_production' || c.statut === 'pret_production');
         if (active) {
           setCouleeActive(active);
-          // Charger le prochain numéro
-          api.get(`/tubes/prochain-numero?coulee_id=${active.id}`)
+          // Charger le prochain numéro (global, pas par coulée)
+          api.get('/tubes/prochain-numero')
             .then(r2 => {
               setProchainNumero(r2.data.numero);
               setForm(f => ({ ...f, numero: String(r2.data.numero) }));
