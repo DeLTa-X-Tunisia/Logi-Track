@@ -391,25 +391,14 @@ function CouleeRow({ coulee, onView, onDelete }) {
   };
 
   return (
-    <div className="p-4 hover:bg-gray-50 transition-colors">
-      {/* Ligne principale */}
+    <div className="p-4 hover:bg-gray-50 transition-colors space-y-1.5">
+      {/* Ligne 1 : Numéro de coulée | Bobine | Preset | Progression | Actions */}
       <div className="flex items-center gap-6">
-        {/* Numéro de coulée et statut */}
         <div className="flex-shrink-0 min-w-[160px]">
-          <div className="flex items-baseline gap-2">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('coulees.numero')}</span>
-          </div>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('coulees.numero')}</span>
           <div className="font-mono font-bold text-lg text-amber-600">{coulee.numero}</div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-xs text-gray-500">{t('common.statut')} :</span>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statut.color}`}>
-              <StatusIcon className="w-3 h-3" />
-              {t(statut.labelKey)}
-            </span>
-          </div>
         </div>
 
-        {/* Bobine */}
         <div className="flex-1 min-w-0">
           {coulee.bobine_numero ? (
             <div className="flex items-center gap-2">
@@ -421,11 +410,10 @@ function CouleeRow({ coulee, onView, onDelete }) {
               </span>
             </div>
           ) : (
-            <span className="text-gray-400 italic">Aucune bobine sélectionnée</span>
+            <span className="text-gray-400 italic text-sm">Aucune bobine sélectionnée</span>
           )}
         </div>
 
-        {/* Preset */}
         {coulee.parametre_numero && (
           <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
             <Settings className="w-4 h-4 text-violet-500" />
@@ -435,7 +423,6 @@ function CouleeRow({ coulee, onView, onDelete }) {
           </div>
         )}
 
-        {/* Progression */}
         <div className="hidden md:flex items-center gap-2 flex-shrink-0">
           <div className="flex items-center gap-1">
             {steps.map((step, i) => (
@@ -454,7 +441,6 @@ function CouleeRow({ coulee, onView, onDelete }) {
           <span className="text-xs font-medium text-gray-600">{progress}/{steps.length}</span>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={onView} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg">
             <Eye className="w-5 h-5" />
@@ -465,34 +451,48 @@ function CouleeRow({ coulee, onView, onDelete }) {
         </div>
       </div>
 
-      {/* Ligne Temps – sous la ligne principale, alignée avec le statut */}
-      {coulee.created_at && (
-        <div className="mt-2 ml-[160px] pl-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs border-t border-gray-100 pt-2">
-          <span className="text-gray-500 font-medium">Temps :</span>
-          <span className="text-gray-500 flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5" />
-            Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </span>
-          {retardRec > 0 && (
-            <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardRec)}`}>
-              <Truck className="w-3.5 h-3.5" />
-              Réception : {formatDuree(retardRec)}
+      {/* Ligne 2 : Statut | Temps + Retards */}
+      <div className="flex items-center gap-6">
+        <div className="flex-shrink-0 min-w-[160px]">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500">{t('common.statut')} :</span>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statut.color}`}>
+              <StatusIcon className="w-3 h-3" />
+              {t(statut.labelKey)}
             </span>
-          )}
-          {retardInst > 0 && (
-            <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardInst)}`}>
-              <Wrench className="w-3.5 h-3.5" />
-              Installation : {formatDuree(retardInst)}
-            </span>
-          )}
-          {hasRetard && (retardRec > 0 && retardInst > 0) && (
-            <span className={`flex items-center gap-1 font-bold ${getRetardColor(retardTotal)}`}>
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Total : {formatDuree(retardTotal)}
-            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {coulee.created_at && (
+            <>
+              <span className="text-gray-500 font-medium">Temps :</span>
+              <span className="text-gray-500 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+              {retardRec > 0 && (
+                <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardRec)}`}>
+                  <Truck className="w-3.5 h-3.5" />
+                  Réception : {formatDuree(retardRec)}
+                </span>
+              )}
+              {retardInst > 0 && (
+                <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardInst)}`}>
+                  <Wrench className="w-3.5 h-3.5" />
+                  Installation : {formatDuree(retardInst)}
+                </span>
+              )}
+              {hasRetard && (retardRec > 0 && retardInst > 0) && (
+                <span className={`flex items-center gap-1 font-bold ${getRetardColor(retardTotal)}`}>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Total : {formatDuree(retardTotal)}
+                </span>
+              )}
+            </>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
