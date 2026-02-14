@@ -75,3 +75,4 @@ LogiTrack-Launcher/publish/
 
 # SSL certificates (auto-generated, sensitive)
 backend/ssl/
+test_cert.pdf

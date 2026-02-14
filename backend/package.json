@@ -1,7 +1,7 @@
 {
   "name": "logitrack-backend",
-  "version": "1.0.0",
-  "description": "Backend API pour Logi-Track - Suivi de production et certification API 5L des tubes spirale",
+  "version": "2.0.0",
+  "description": "Backend API pour LogiTrack - ERP de suivi de production et certification API 5L des tubes spirale",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

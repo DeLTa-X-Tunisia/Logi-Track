@@ -1,51 +1,108 @@
-# Logi-Track
+# LogiTrack
 
-**Suivi de production et certification API 5L des tubes spirale**
+**ERP de suivi de production et certification API 5L des tubes spirale**
 
-![Logi-Track](frontend/public/logo.png)
+![LogiTrack](frontend/public/logo.png)
 
 ## 🎯 Objectif
 
-Logi-Track est une application web de gestion de production pour les tubes spirale, avec traçabilité complète et génération de rapports conformes aux standards **API 5L**.
+LogiTrack est une application web ERP complète de gestion de production pour les tubes spirale, avec traçabilité complète du processus de fabrication (12 étapes), génération de rapports PDF et certificats conformes aux standards **API 5L** et **Hydraulique**.
 
-## 🏭 Étapes de Production
+## 🏭 Pipeline de Production — 12 Étapes API 5L
 
-1. **Formage** - Formage du tube spirale à partir de la bobine
-2. **Contrôle Visuel** - Inspection visuelle du tube formé
-3. **Soudage** - Soudage de la soudure spirale (intérieur et extérieur)
-4. **X-Ray** - Radiographie des soudures selon API 5L
-5. **Chanfreinage** - Usinage des extrémités du tube
-6. **Test Hydraulique** - Épreuve hydrostatique selon API 5L
-7. **Contrôle Final** - Vérification finale et marquage
-8. **Certification** - Émission du certificat API 5L
+| # | Étape | Description |
+|---|-------|-------------|
+| 1 | **Déroulage** | Déroulage de la bobine d'acier |
+| 2 | **Redressage** | Redressage de la bande |
+| 3 | **Formage** | Formage du tube spirale |
+| 4 | **Soudage INT** | Soudage intérieur de la soudure spirale |
+| 5 | **Soudage EXT** | Soudage extérieur de la soudure spirale |
+| 6 | **X-Ray** | Radiographie des soudures (contrôle non destructif) |
+| 7 | **Chanfreinage** | Usinage des extrémités du tube |
+| 8 | **Test Hydraulique** | Épreuve hydrostatique selon API 5L |
+| 9 | **Contrôle Visuel** | Inspection visuelle du tube |
+| 10 | **Contrôle Dimensionnel** | Vérification des dimensions (longueur, diamètre, épaisseur) |
+| 11 | **Pesage** | Pesage du tube fini |
+| 12 | **Marquage** | Marquage réglementaire sur le tube |
+
+## ✨ Fonctionnalités Principales
+
+### Gestion de Production
+- **Coulées** : workflow complet de gestion des coulées d'acier avec métadonnées (grade, nuance, fournisseur)
+- **Bobines** : gestion des bobines avec photos, dimensions, fournisseurs, et rapports PDF
+- **Tubes** : suivi individuel de chaque tube à travers les 12 étapes de production
+- **Paramètres de Production** : diamètre du tube (8" à 82"), numérotation automatique, groupement par diamètre
+- **Paramètres de Soudage** : configuration des paramètres de soudage par coulée
+
+### Rapports PDF
+- **Rapport Tube** : rapport complet multi-pages avec en-tête logos, paramètres de soudage, détail des 12 étapes, photos d'étapes, analyse des temps et délais inter-étapes, et encadré Décision Finale premium thématisé
+- **Rapport Bobine** : fiche détaillée avec photos et métadonnées
+- **Certificat API 5L** : certificat de conformité fond blanc, accents or/doré, double cadre, ornements d'angle, sceau, zones de signature
+- **Certificat Hydraulique** : certificat de conformité fond blanc, accents bleu, même design premium
+
+### Décision Finale
+- **Certifié API 5L** : tube conforme au standard API 5L (thème or/marine)
+- **Certifié Hydraulique** : tube conforme pour usage hydraulique (thème cyan/bleu)
+- **Déclassé** : tube non conforme (thème orange/brique)
+
+### Contrôle Qualité
+- **Checklists** : début de quart, hebdomadaire, mensuelle
+- **Checklist Machine** : vérification de l'état des machines
+- **Photos d'étapes** : prise de photos à chaque étape avec stockage serveur
+
+### Dashboard & Analytics
+- **Dashboard** : vue d'ensemble de la production (tubes en cours, terminés, statistiques)
+- **Analyse des temps** : temps passé par étape, délais inter-étapes, identification des goulots d'étranglement
+
+### Gestion des Utilisateurs
+- **Admin** : accès complet avec gestion des comptes
+- **Opérateurs** : connexion par code à 6 chiffres, accès limité par rôle
+- **Direction** : accès en lecture aux rapports et dashboard
+
+### Internationalisation (i18n)
+- 🇫🇷 Français
+- 🇬🇧 English
+- 🇮🇹 Italiano
+- 🇸🇦 العربية (support RTL complet)
+
+### PWA & Mobile
+- **Progressive Web App** : installation sur mobile/desktop
+- **Responsive** : interface adaptée à tous les écrans
+- **Mode fullscreen** : sans barre de navigation sur mobile
 
 ## 🛠️ Technologies
 
 ### Backend
 - **Node.js** avec Express.js
-- **MySQL** (Laragon)
+- **MySQL 8.0** (Laragon)
 - **Socket.io** pour les notifications temps réel
 - **JWT** pour l'authentification
-- Préparé pour **WebRTC** (communication vidéo future)
+- **PDFKit** pour la génération de rapports et certificats PDF
+- **Multer** pour l'upload de photos
+- **HTTPS** (port 3443) + HTTP (port 3002)
 
 ### Frontend
-- **React.js** avec Vite
+- **React 18** avec Vite 5.4
 - **Tailwind CSS** pour le design
-- **Lucide Icons** pour les icônes
-- **Socket.io-client** pour les notifications temps réel
+- **Lucide React** pour les icônes
+- **Socket.io-client** pour le temps réel
+- **html2canvas** pour les exports
+
+### Application Desktop
+- **LogiTrack Launcher** : application bureau C# WinForms (.NET 8)
 
 ## 🚀 Installation
 
 ### Prérequis
 - Node.js 18+
-- MySQL (Laragon recommandé)
+- MySQL 8.0 (Laragon recommandé)
 
 ### Backend
 ```bash
 cd backend
 npm install
 npm run init-db   # Initialiser la base de données
-npm run dev       # Démarrer le serveur (port 3002)
+npm run dev       # Démarrer le serveur (HTTP:3002 + HTTPS:3443)
 ```
 
 ### Frontend
@@ -53,20 +110,17 @@ npm run dev       # Démarrer le serveur (port 3002)
 cd frontend
 npm install
 npm run dev       # Démarrer le frontend (port 5173)
+npm run build     # Build de production
 ```
 
 ## 🔐 Connexion
 
 ### Admin
-- **Username**: `admin`
-- **Password**: `admin123`
+- **Username** : `admin`
+- **Password** : `admin123`
 
 ### Opérateurs (code à 6 chiffres)
-- `123456` - Jean Martin (Formage)
-- `234567` - Pierre Dubois (Soudage)
-- `345678` - Marie Bernard (Contrôle)
-- `456789` - Paul Petit (X-Ray)
-- `567890` - Sophie Robert (Hydraulique)
+Chaque opérateur se connecte avec son code personnel à 6 chiffres.
 
 ## 📁 Structure du Projet
 
@@ -74,33 +128,31 @@ npm run dev       # Démarrer le frontend (port 5173)
 LogiTrack/
 ├── backend/
 │   ├── src/
-│   │   ├── config/         # Configuration (DB)
-│   │   ├── database/       # Scripts d'initialisation
+│   │   ├── config/         # Configuration (DB, upload)
+│   │   ├── database/       # Scripts d'initialisation & migrations
 │   │   ├── middleware/     # Auth JWT
-│   │   ├── routes/         # Routes API
-│   │   └── server.js       # Point d'entrée
-│   ├── .env                # Variables d'environnement
+│   │   ├── routes/         # Routes API (auth, bobines, coulees, tubes, etapes, checklist, comptes)
+│   │   └── server.js       # Point d'entrée (HTTP + HTTPS)
+│   ├── uploads/            # Photos (bobines, coulees)
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/     # Composants React
-│   │   ├── context/        # Context (Auth)
-│   │   ├── pages/          # Pages de l'application
+│   │   ├── components/     # Composants React (Layout, Toast, ConfirmModal, ProtectedRoute)
+│   │   ├── context/        # AuthContext
+│   │   ├── pages/          # Pages (Dashboard, Bobines, Coulees, Tubes, Checklists, Login, GestionComptes)
 │   │   ├── services/       # API & Socket
 │   │   └── App.jsx         # Point d'entrée React
-│   ├── index.html
+│   ├── public/             # Assets statiques, manifest PWA
 │   └── package.json
-├── logo.png
 └── README.md
 ```
 
 ## 🔮 Fonctionnalités Futures
 
 - [ ] Intégration WebRTC pour suivi vidéo temps réel
-- [ ] Alertes push avec SignalR/Socket.io
-- [ ] Dashboard analytics avancé
-- [ ] Export PDF des certificats API 5L
-- [ ] Application mobile (React Native)
+- [ ] Dashboard analytics avancé avec graphiques
+- [ ] Application mobile native (React Native)
+- [ ] Export Excel des données de production
 
 ## 👨‍💻 Auteur
 
@@ -108,28 +160,8 @@ LogiTrack/
 
 ---
 
-## 📋 Version & Changelog
-
-### v1.2.0 — 13 Février 2026
-- **Coulées** : ouverture directe du modal détail après création d'une coulée
-- **Coulées** : affichage "Coulée démarrée le [date/heure]" dans l'étape 1 pour traçabilité du temps perdu
-- **Sidebar** : titre simplifié "PROJET – Nom du Client"
-
-### v1.1.0 — 13 Février 2026
-- **Sidebar** : restructuration — section "Projet" (Dashboard, Checklists) + section "Étapes de Production" (Bobines, Paramètres, Coulées, etc.)
-- **Paramètres de Production** : sélection du diamètre du tube (8" à 82") avec numérotation `PAR-{diamètre}-{seq}` et groupement par diamètre
-- **Fournisseurs** : gestion complète dans le formulaire Bobines — liste déroulante, ajout, suppression avec confirmation professionnelle
-
-### v1.0.0 — 13 Février 2026
-- **Initial release** : LogiTrack ERP complet
-- **Modules** : Dashboard, Bobines, Coulées (workflow 12 étapes), Tubes, Checklists (début de quart, hebdomadaire, mensuelle), Checklist Machine, Paramètres de Production
-- **Système i18n** : 4 langues (FR, EN, IT, AR) avec support RTL
-- **Authentification** : JWT, admin + opérateurs par code 6 chiffres
-- **PDF** : génération de rapports bobines
-- **Temps réel** : notifications Socket.io
-- **Paramètres du Projet** : logos, infos client, configuration globale
-- **LogiTrack-Launcher** : application bureau C# WinForms (.NET 8)
+Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique détaillé des versions.
 
 ---
 
-*Inspiré de PipeTrack, adapté pour le flux de production API 5L*
+*Système ERP de production API 5L — LogiTrack*

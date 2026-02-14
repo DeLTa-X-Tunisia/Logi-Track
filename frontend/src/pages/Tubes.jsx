@@ -430,6 +430,32 @@ function TubeCard({ tube, onClick, onDelete }) {
             >
               <FileText className="w-4 h-4" />
             </button>
+            {(tube.decision === 'certifie_api' || tube.decision === 'certifie_hydraulique') && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const res = await api.get(`/tubes/${tube.id}/certificat`, { responseType: 'blob' });
+                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `certificat_tube_${tube.numero}.pdf`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    console.error('Erreur certificat:', err);
+                  }
+                }}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  tube.decision === 'certifie_api'
+                    ? 'text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50'
+                    : 'text-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                }`}
+                title={`Télécharger certificat ${tube.decision === 'certifie_api' ? 'API 5L' : 'Hydraulique'}`}
+              >
+                <Award className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -1252,6 +1278,32 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
             >
               <FileText className="w-5 h-5" />
             </button>
+            {(tube.decision === 'certifie_api' || tube.decision === 'certifie_hydraulique') && (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await api.get(`/tubes/${tube.id}/certificat`, { responseType: 'blob' });
+                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `certificat_tube_${tube.numero}.pdf`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    showToast('Certificat téléchargé', 'success');
+                  } catch (err) {
+                    showToast('Erreur génération certificat', 'error');
+                  }
+                }}
+                className={`p-2 rounded-lg ${
+                  tube.decision === 'certifie_api'
+                    ? 'hover:bg-emerald-100 text-emerald-600'
+                    : 'hover:bg-cyan-100 text-cyan-600'
+                }`}
+                title={`Télécharger certificat ${tube.decision === 'certifie_api' ? 'API 5L' : 'Hydraulique'}`}
+              >
+                <Award className="w-5 h-5" />
+              </button>
+            )}
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
           </div>
         </div>
