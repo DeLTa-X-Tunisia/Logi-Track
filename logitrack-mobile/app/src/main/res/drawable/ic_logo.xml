@@ -23,7 +23,6 @@
 
     <!-- Fumée -->
     <path
-        android:fillColor="#93c5fd"
         android:pathData="M33,30 Q28,22 33,18 Q38,14 33,8"
         android:strokeWidth="2.5"
         android:strokeColor="#93c5fd"
