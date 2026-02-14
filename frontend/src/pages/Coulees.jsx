@@ -1196,7 +1196,13 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
               <button
                 onClick={async () => {
                   await updateStep('demarrer-production');
-                  navigate(`/tubes?coulee_id=${coulee.id}&new_tube=1`);
+                  // Si une autre coulée est déjà en production, aller vers la liste des tubes seulement
+                  const autreCouleeActive = coulees.some(c => c.id !== coulee.id && c.statut === 'en_production');
+                  if (autreCouleeActive) {
+                    navigate('/tubes');
+                  } else {
+                    navigate(`/tubes?coulee_id=${coulee.id}&new_tube=1`);
+                  }
                 }}
                 disabled={loading}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 mx-auto"
