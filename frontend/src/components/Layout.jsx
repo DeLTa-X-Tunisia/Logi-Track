@@ -30,7 +30,8 @@ import {
   CheckCheck,
   Award,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Smartphone
 } from 'lucide-react';
 
 import ChecklistAlert from './ChecklistAlert';
@@ -807,6 +808,28 @@ function Sidebar({ navigationKeys, checklistSubMenuKeys, location, onClose, isAd
           </Link>
         </div>
       )}
+
+      {/* Téléchargement Android APK */}
+      <div className="px-4 pb-2">
+        <p className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          {t('nav.mobile_app', 'Application Mobile')}
+        </p>
+        <a
+          href={`${API_URL.replace('/api', '')}/api/download/android`}
+          download="LogiTrack.apk"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-700 group"
+          onClick={onClose}
+        >
+          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+            <Smartphone className="w-4 h-4 text-green-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{t('nav.download_apk', 'Télécharger APK Android')}</p>
+            <p className="text-[10px] text-gray-400 leading-tight">{t('nav.download_apk_hint', 'Activez "Sources inconnues" si nécessaire')}</p>
+          </div>
+          <Download className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
+        </a>
+      </div>
 
       {/* Version */}
       <div className="px-6 py-4 border-t border-gray-200">

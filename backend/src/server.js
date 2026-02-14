@@ -104,6 +104,34 @@ app.use('/api/dashboard', authenticateToken, dashboardRoutes); // Dashboard stat
 app.use('/api/fournisseurs', fournisseursRoutes); // Gestion des fournisseurs
 app.use('/api/notifications', authenticateToken, notificationsRoutes); // Notifications
 
+// Téléchargement APK Android (publique)
+const apkPath = path.join(__dirname, '../../AndroidLogitrack/app-release.apk');
+app.get('/api/download/android', (req, res) => {
+  if (fs.existsSync(apkPath)) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="LogiTrack.apk"');
+    res.sendFile(apkPath);
+  } else {
+    res.status(404).json({ error: 'APK non disponible' });
+  }
+});
+
+// Info APK (version, taille, disponibilité)
+app.get('/api/download/android/info', (req, res) => {
+  if (fs.existsSync(apkPath)) {
+    const stats = fs.statSync(apkPath);
+    res.json({
+      available: true,
+      filename: 'LogiTrack.apk',
+      size: stats.size,
+      sizeFormatted: (stats.size / (1024 * 1024)).toFixed(1) + ' MB',
+      lastModified: stats.mtime
+    });
+  } else {
+    res.json({ available: false });
+  }
+});
+
 // Route de découverte pour l'app Android (fallback HTTP, publique)
 app.get('/api/discover', (req, res) => {
   const os = require('os');

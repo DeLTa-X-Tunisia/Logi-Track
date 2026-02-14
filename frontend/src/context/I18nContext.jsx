@@ -22,6 +22,9 @@ const defaultTranslations = {
   'nav.parametres_projet': 'Paramètres du Projet',
   'nav.parametres_langue': 'Paramètres de Langue',
   'nav.gestion_comptes': 'Gestion des Comptes',
+  'nav.mobile_app': 'Application Mobile',
+  'nav.download_apk': 'Télécharger APK Android',
+  'nav.download_apk_hint': 'Activez "Sources inconnues" si nécessaire',
 
   // Header
   'header.parametres': 'Paramètres',
