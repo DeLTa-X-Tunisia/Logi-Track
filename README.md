@@ -2,7 +2,7 @@
 
 **ERP de suivi de production et certification API 5L des tubes spirale**
 
-![LogiTrack](frontend/public/logo.png)
+<img width="200" height="200" alt="logo" src="https://github.com/user-attachments/assets/b51077ec-a29c-4b6d-b0a1-609d067ab09a" />
 
 ## 🎯 Objectif
 
