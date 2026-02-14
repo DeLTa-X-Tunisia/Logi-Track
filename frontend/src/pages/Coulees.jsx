@@ -416,110 +416,206 @@ function CouleeRow({ coulee, onView, onDelete, onDownloadPdf }) {
   };
 
   return (
-    <div className="p-4 hover:bg-gray-50 transition-colors space-y-1.5">
-      {/* Ligne 1 : Numéro de coulée | Bobine | Preset | Progression | Actions */}
-      <div className="flex items-center gap-6">
-        <div className="flex-shrink-0 min-w-[160px]">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('coulees.numero')}</span>
-          <div className="font-mono font-bold text-lg text-amber-600">{coulee.numero}</div>
-        </div>
+    <div className="p-4 hover:bg-gray-50 transition-colors">
+      {/* ====== DESKTOP LAYOUT (md+) ====== */}
+      <div className="hidden md:block space-y-1.5">
+        {/* Ligne 1 : Numéro de coulée | Bobine | Preset | Progression | Actions */}
+        <div className="flex items-center gap-6">
+          <div className="flex-shrink-0 min-w-[160px]">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('coulees.numero')}</span>
+            <div className="font-mono font-bold text-lg text-amber-600">{coulee.numero}</div>
+          </div>
 
-        <div className="flex-1 min-w-0">
-          {coulee.bobine_numero ? (
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs text-gray-500">{t('bobines.numero')} :</span>
-              <span className="font-semibold text-gray-900">{coulee.bobine_numero}</span>
-              <span className="text-sm text-gray-500">
-                ({coulee.bobine_epaisseur}mm × {coulee.bobine_largeur}mm)
+          <div className="flex-1 min-w-0">
+            {coulee.bobine_numero ? (
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs text-gray-500">{t('bobines.numero')} :</span>
+                <span className="font-semibold text-gray-900">{coulee.bobine_numero}</span>
+                <span className="text-sm text-gray-500">
+                  ({coulee.bobine_epaisseur}mm × {coulee.bobine_largeur}mm)
+                </span>
+              </div>
+            ) : (
+              <span className="text-gray-400 italic text-sm">Aucune bobine sélectionnée</span>
+            )}
+          </div>
+
+          {coulee.parametre_numero && (
+            <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
+              <Settings className="w-4 h-4 text-violet-500" />
+              <span className="text-xs font-mono font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
+                {coulee.parametre_numero}
               </span>
             </div>
-          ) : (
-            <span className="text-gray-400 italic text-sm">Aucune bobine sélectionnée</span>
           )}
-        </div>
 
-        {coulee.parametre_numero && (
-          <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
-            <Settings className="w-4 h-4 text-violet-500" />
-            <span className="text-xs font-mono font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
-              {coulee.parametre_numero}
-            </span>
-          </div>
-        )}
-
-        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1">
-            {steps.map((step, i) => (
-              <div key={i} className="flex items-center">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  step.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
-                }`}>
-                  {step.done ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-center">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                    step.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+                  }`}>
+                    {step.done ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div className={`w-4 h-0.5 ${step.done ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  )}
                 </div>
-                {i < steps.length - 1 && (
-                  <div className={`w-4 h-0.5 ${step.done ? 'bg-green-500' : 'bg-gray-200'}`} />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
+            <span className="text-xs font-medium text-gray-600">{progress}/{steps.length}</span>
           </div>
-          <span className="text-xs font-medium text-gray-600">{progress}/{steps.length}</span>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={onDownloadPdf} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Télécharger PDF">
+              <FileDown className="w-5 h-5" />
+            </button>
+            <button onClick={onView} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg">
+              <Eye className="w-5 h-5" />
+            </button>
+            <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={onDownloadPdf} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Télécharger PDF">
-            <FileDown className="w-5 h-5" />
-          </button>
-          <button onClick={onView} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg">
-            <Eye className="w-5 h-5" />
-          </button>
-          <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-            <Trash2 className="w-5 h-5" />
-          </button>
+        {/* Ligne 2 : Statut | Temps + Retards */}
+        <div className="flex items-center gap-6">
+          <div className="flex-shrink-0 min-w-[160px]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">{t('common.statut')} :</span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statut.color}`}>
+                <StatusIcon className="w-3 h-3" />
+                {t(statut.labelKey)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            {coulee.created_at && (
+              <>
+                <span className="text-gray-500 font-medium">Temps :</span>
+                <span className="text-gray-500 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+                {retardRec > 0 && (
+                  <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardRec)}`}>
+                    <Truck className="w-3.5 h-3.5" />
+                    Réception : {formatDuree(retardRec)}
+                  </span>
+                )}
+                {retardInst > 0 && (
+                  <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardInst)}`}>
+                    <Wrench className="w-3.5 h-3.5" />
+                    Installation : {formatDuree(retardInst)}
+                  </span>
+                )}
+                {hasRetard && (retardRec > 0 && retardInst > 0) && (
+                  <span className={`flex items-center gap-1 font-bold text-sm ${getRetardColor(retardTotal)}`}>
+                    <AlertTriangle className="w-4 h-4" />
+                    Total : {formatDuree(retardTotal)}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Ligne 2 : Statut | Temps + Retards */}
-      <div className="flex items-center gap-6">
-        <div className="flex-shrink-0 min-w-[160px]">
+      {/* ====== MOBILE LAYOUT (<md) ====== */}
+      <div className="md:hidden space-y-3">
+        {/* Header : Numéro + Statut + Actions */}
+        <div className="flex items-start justify-between">
+          <div>
+            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{t('coulees.numero')}</span>
+            <div className="font-mono font-bold text-xl text-amber-600">{coulee.numero}</div>
+          </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-500">{t('common.statut')} :</span>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statut.color}`}>
               <StatusIcon className="w-3 h-3" />
               {t(statut.labelKey)}
             </span>
+            <button onClick={onDownloadPdf} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg">
+              <FileDown className="w-4 h-4" />
+            </button>
+            <button onClick={onView} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg">
+              <Eye className="w-4 h-4" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg">
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-          {coulee.created_at && (
-            <>
-              <span className="text-gray-500 font-medium">Temps :</span>
-              <span className="text-gray-500 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        {/* Infos : Bobine + Preset */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {coulee.bobine_numero ? (
+            <div className="flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-xs text-gray-500">Bobine :</span>
+              <span className="text-sm font-semibold text-gray-900">{coulee.bobine_numero}</span>
+              <span className="text-xs text-gray-400">
+                ({coulee.bobine_epaisseur}×{coulee.bobine_largeur}mm)
               </span>
-              {retardRec > 0 && (
-                <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardRec)}`}>
-                  <Truck className="w-3.5 h-3.5" />
-                  Réception : {formatDuree(retardRec)}
-                </span>
-              )}
-              {retardInst > 0 && (
-                <span className={`flex items-center gap-1 font-medium ${getRetardColor(retardInst)}`}>
-                  <Wrench className="w-3.5 h-3.5" />
-                  Installation : {formatDuree(retardInst)}
-                </span>
-              )}
-              {hasRetard && (retardRec > 0 && retardInst > 0) && (
-                <span className={`flex items-center gap-1 font-bold text-sm ${getRetardColor(retardTotal)}`}>
-                  <AlertTriangle className="w-4 h-4" />
-                  Total : {formatDuree(retardTotal)}
-                </span>
-              )}
-            </>
+            </div>
+          ) : (
+            <span className="text-gray-400 italic text-xs">Aucune bobine</span>
+          )}
+          {coulee.parametre_numero && (
+            <span className="text-xs font-mono font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded-full border border-violet-200 flex items-center gap-1">
+              <Settings className="w-3 h-3 text-violet-500" />
+              {coulee.parametre_numero}
+            </span>
           )}
         </div>
+
+        {/* Progression mini */}
+        <div className="flex items-center gap-1">
+          {steps.map((step, i) => (
+            <div key={i} className="flex items-center">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                step.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+              }`}>
+                {step.done ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`w-3 h-0.5 ${step.done ? 'bg-green-500' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          ))}
+          <span className="text-xs font-medium text-gray-500 ml-1">{progress}/{steps.length}</span>
+        </div>
+
+        {/* Temps & Retards */}
+        {coulee.created_at && (
+          <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            {retardRec > 0 && (
+              <div className={`flex items-center gap-1.5 text-xs font-medium ${getRetardColor(retardRec)}`}>
+                <Truck className="w-3.5 h-3.5" />
+                <span>Réception : {formatDuree(retardRec)}</span>
+              </div>
+            )}
+            {retardInst > 0 && (
+              <div className={`flex items-center gap-1.5 text-xs font-medium ${getRetardColor(retardInst)}`}>
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Installation : {formatDuree(retardInst)}</span>
+              </div>
+            )}
+            {hasRetard && (retardRec > 0 && retardInst > 0) && (
+              <div className={`flex items-center gap-1.5 text-xs font-bold ${getRetardColor(retardTotal)}`}>
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Total : {formatDuree(retardTotal)}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
