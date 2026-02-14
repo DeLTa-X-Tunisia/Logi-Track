@@ -629,6 +629,43 @@ router.put('/:id/decision', async (req, res) => {
       'SELECT * FROM tube_etapes WHERE tube_id = ? ORDER BY etape_numero', [id]
     );
     updatedTube[0].etapes = etapes;
+
+    // === Notification temps réel ===
+    const decisionLabels = {
+      certifie_api: 'Certifié API 5L',
+      certifie_hydraulique: 'Certifié Hydraulique',
+      declasse: 'Déclassé'
+    };
+    const decisionLabel = decisionLabels[decision] || decision;
+    const notifTitre = `Décision Finale — Tube N°${updatedTube[0].numero}`;
+    const notifMessage = `Le tube N°${updatedTube[0].numero} a été déclaré "${decisionLabel}" par ${decision_par}.`;
+
+    // Sauvegarder en DB
+    try {
+      await pool.query(`
+        INSERT INTO notifications (type, titre, message, tube_id, tube_numero, decision, created_by)
+        VALUES ('decision', ?, ?, ?, ?, ?, ?)
+      `, [notifTitre, notifMessage, id, updatedTube[0].numero, decision, decision_par]);
+    } catch (notifErr) {
+      console.error('Erreur sauvegarde notification:', notifErr);
+    }
+
+    // Émettre via Socket.io à tous les clients connectés
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('notification', {
+        type: 'decision',
+        titre: notifTitre,
+        message: notifMessage,
+        tube_id: parseInt(id),
+        tube_numero: updatedTube[0].numero,
+        decision,
+        created_by: decision_par,
+        created_at: new Date().toISOString()
+      });
+      console.log(`🔔 Notification émise: ${notifTitre}`);
+    }
+
     res.json(updatedTube[0]);
   } catch (error) {
     console.error('Erreur decision:', error);

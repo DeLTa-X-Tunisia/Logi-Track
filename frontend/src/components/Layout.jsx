@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../context/I18nContext';
 import api from '../services/api';
+import socketService from '../services/socket';
 import { 
   LayoutDashboard, 
   Cylinder, 
@@ -25,7 +26,11 @@ import {
   Building2,
   Languages,
   Globe,
-  Download
+  Download,
+  CheckCheck,
+  Award,
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react';
 
 import ChecklistAlert from './ChecklistAlert';
@@ -57,12 +62,19 @@ export default function Layout({ children }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [projetParams, setProjetParams] = useState(null);
   const userMenuRef = useRef(null);
+  const notifRef = useRef(null);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showManualInstall, setShowManualInstall] = useState(false);
   const [isStandalone, setIsStandalone] = useState(
     window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
   );
+
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifToast, setNotifToast] = useState(null);
 
   // Detect mobile browser
   const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -141,10 +153,97 @@ export default function Layout({ children }) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setUserMenuOpen(false);
       }
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setNotifOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Charger les notifications depuis l'API
+  const fetchNotifications = useCallback(() => {
+    api.get('/notifications')
+      .then(res => {
+        setNotifications(res.data.notifications || []);
+        setUnreadCount(res.data.unread_count || 0);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    // Rafraîchir toutes les 60 secondes
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  // Socket.io — écouter les notifications temps réel
+  useEffect(() => {
+    socketService.connect();
+
+    socketService.onNotification((data) => {
+      // Ajouter en tête de liste
+      setNotifications(prev => [{ ...data, id: Date.now(), lu: 0 }, ...prev].slice(0, 50));
+      setUnreadCount(prev => prev + 1);
+
+      // Afficher un toast discret
+      setNotifToast(data);
+      setTimeout(() => setNotifToast(null), 5000);
+
+      // Jouer un son si désiré (navigateur)
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.value = 0.08;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch(e) {}
+    });
+
+    return () => {
+      socketService.off('notification');
+    };
+  }, []);
+
+  // Marquer toutes les notifications comme lues
+  const markAllRead = () => {
+    api.put('/notifications/lire-tout')
+      .then(() => {
+        setNotifications(prev => prev.map(n => ({ ...n, lu: 1 })));
+        setUnreadCount(0);
+      })
+      .catch(() => {});
+  };
+
+  // Marquer une notification comme lue
+  const markRead = (notifId) => {
+    api.put(`/notifications/${notifId}/lu`)
+      .then(() => {
+        setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, lu: 1 } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      })
+      .catch(() => {});
+  };
+
+  const getTimeAgo = (dateStr) => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now - date;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'À l\'instant';
+    if (diffMin < 60) return `Il y a ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `Il y a ${diffH}h`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD === 1) return 'Hier';
+    return `Il y a ${diffD}j`;
+  };
 
   const handleLogout = () => {
     logout();
@@ -291,10 +390,110 @@ export default function Layout({ children }) {
 
             <div className="flex items-center gap-4 ml-auto">
               {/* Notifications */}
-              <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full"></span>
-              </button>
+              <div className="relative" ref={notifRef}>
+                <button 
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-primary-600' : 'text-gray-600'}`} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-danger-500 text-white text-[10px] font-bold rounded-full px-1 animate-pulse">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification dropdown panel */}
+                {notifOpen && (
+                  <div className={`absolute ${direction === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden animate-fadeIn z-50`}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <Bell className="w-4 h-4" />
+                        Notifications
+                        {unreadCount > 0 && (
+                          <span className="ml-1 px-1.5 py-0.5 bg-danger-500 text-white text-[10px] font-bold rounded-full">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </h3>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllRead}
+                          className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          Tout marquer lu
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Notifications list */}
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-sm text-gray-400">Aucune notification</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => {
+                          const decisionIcon = notif.decision === 'certifie_api' 
+                            ? <ShieldCheck className="w-5 h-5 text-amber-600" />
+                            : notif.decision === 'certifie_hydraulique'
+                              ? <Award className="w-5 h-5 text-blue-600" />
+                              : notif.decision === 'declasse'
+                                ? <AlertTriangle className="w-5 h-5 text-orange-500" />
+                                : <Bell className="w-5 h-5 text-gray-400" />;
+                          
+                          const decisionBg = notif.decision === 'certifie_api'
+                            ? 'bg-amber-50 border-l-amber-400'
+                            : notif.decision === 'certifie_hydraulique'
+                              ? 'bg-blue-50 border-l-blue-400'
+                              : notif.decision === 'declasse'
+                                ? 'bg-orange-50 border-l-orange-400'
+                                : 'bg-white border-l-gray-300';
+
+                          const timeAgo = getTimeAgo(notif.created_at);
+
+                          return (
+                            <div
+                              key={notif.id}
+                              onClick={() => {
+                                if (!notif.lu) markRead(notif.id);
+                                if (notif.tube_id) {
+                                  navigate('/tubes');
+                                  setNotifOpen(false);
+                                }
+                              }}
+                              className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 ${decisionBg} ${!notif.lu ? 'bg-opacity-100' : 'bg-opacity-30 opacity-70'}`}
+                            >
+                              <div className="flex-shrink-0 mt-0.5">
+                                {decisionIcon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm ${!notif.lu ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
+                                  {notif.titre}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                  {notif.message}
+                                </p>
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                  {timeAgo}
+                                </p>
+                              </div>
+                              {!notif.lu && (
+                                <div className="flex-shrink-0 mt-1.5">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-primary-500"></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* User menu */}
               <div className="relative" ref={userMenuRef}>
@@ -369,6 +568,38 @@ export default function Layout({ children }) {
 
         {/* Alerte expiration checklists */}
         <ChecklistAlert />
+
+        {/* Notification Toast Popup */}
+        {notifToast && (
+          <div className="fixed bottom-6 right-6 z-[60] animate-fadeIn max-w-sm w-full">
+            <div className={`flex items-start gap-3 p-4 rounded-xl shadow-2xl border-l-4 ${
+              notifToast.decision === 'certifie_api' 
+                ? 'bg-white border-l-amber-500' 
+                : notifToast.decision === 'certifie_hydraulique'
+                  ? 'bg-white border-l-blue-500'
+                  : 'bg-white border-l-orange-500'
+            }`}>
+              <div className="flex-shrink-0 mt-0.5">
+                {notifToast.decision === 'certifie_api' 
+                  ? <ShieldCheck className="w-6 h-6 text-amber-600" />
+                  : notifToast.decision === 'certifie_hydraulique'
+                    ? <Award className="w-6 h-6 text-blue-600" />
+                    : <AlertTriangle className="w-6 h-6 text-orange-500" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{notifToast.titre}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{notifToast.message}</p>
+              </div>
+              <button 
+                onClick={() => setNotifToast(null)}
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <footer className="border-t border-gray-200 py-4 px-6 text-center">

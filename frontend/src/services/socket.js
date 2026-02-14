@@ -82,6 +82,13 @@ class SocketService {
     }
   }
 
+  // Écouter les notifications (décisions finales, etc.)
+  onNotification(callback) {
+    if (this.socket) {
+      this.socket.on('notification', callback);
+    }
+  }
+
   // Supprimer un écouteur
   off(event) {
     if (this.socket) {

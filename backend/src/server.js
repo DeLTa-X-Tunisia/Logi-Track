@@ -20,6 +20,7 @@ const parametresRoutes = require('./routes/parametres');
 const projetParametresRoutes = require('./routes/projetParametres');
 const languesRoutes = require('./routes/langues');
 const fournisseursRoutes = require('./routes/fournisseurs');
+const notificationsRoutes = require('./routes/notifications');
 
 // Import du middleware d'authentification
 const { authenticateToken } = require('./middleware/auth');
@@ -57,6 +58,9 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+
+// Rendre io accessible aux routes via req.app.get('io')
+app.set('io', io);
 
 // Middlewares
 app.use(cors());
@@ -98,6 +102,7 @@ app.use('/api/checklist', authenticateToken, checklistRoutes); // Checklist Mach
 app.use('/api/checklist-periodique', checklistPeriodiqueRoutes); // Checklists périodiques
 app.use('/api/dashboard', authenticateToken, dashboardRoutes); // Dashboard stats
 app.use('/api/fournisseurs', fournisseursRoutes); // Gestion des fournisseurs
+app.use('/api/notifications', authenticateToken, notificationsRoutes); // Notifications
 
 // Socket.io - Gestion des connexions temps réel
 io.on('connection', (socket) => {
