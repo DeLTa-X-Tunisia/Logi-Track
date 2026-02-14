@@ -460,9 +460,9 @@ export default function Layout({ children }) {
                               key={notif.id}
                               onClick={() => {
                                 if (!notif.lu) markRead(notif.id);
+                                setNotifOpen(false);
                                 if (notif.tube_id) {
-                                  navigate('/tubes');
-                                  setNotifOpen(false);
+                                  navigate(`/tubes?highlight=${notif.tube_id}`);
                                 }
                               }}
                               className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 ${decisionBg} ${!notif.lu ? 'bg-opacity-100' : 'bg-opacity-30 opacity-70'}`}

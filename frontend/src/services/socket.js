@@ -12,9 +12,19 @@ class SocketService {
   connect() {
     if (this.socket?.connected) return;
 
+    // Déconnecter proprement si une instance existe mais n'est pas connectée
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+    }
+
     this.socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
-      autoConnect: true
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
     });
 
     this.socket.on('connect', () => {

@@ -120,6 +120,7 @@ export default function Tubes() {
   // Sync filter with URL changes (navigation from Coulées)
   useEffect(() => {
     const isNewTube = searchParams.get('new_tube') === '1';
+    const highlightTubeId = searchParams.get('highlight');
     // Ne pas filtrer par coulée quand on vient de Démarrer Production
     // pour afficher tous les tubes en cours
     if (!isNewTube) {
@@ -132,6 +133,19 @@ export default function Tubes() {
     if (isNewTube) {
       setShowNewModal(true);
       // Clean up URL params to avoid re-opening on refresh
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    // Ouvrir directement un tube depuis une notification
+    if (highlightTubeId) {
+      (async () => {
+        try {
+          const response = await api.get(`/tubes/${highlightTubeId}`);
+          setSelectedTube(response.data);
+        } catch (e) {
+          console.error('Erreur chargement tube depuis notification:', e);
+        }
+      })();
+      // Nettoyer l'URL pour éviter re-ouverture au refresh
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
