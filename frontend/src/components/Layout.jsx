@@ -24,7 +24,8 @@ import {
   Lock,
   Building2,
   Languages,
-  Globe
+  Globe,
+  Download
 } from 'lucide-react';
 
 import ChecklistAlert from './ChecklistAlert';
@@ -56,6 +57,40 @@ export default function Layout({ children }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [projetParams, setProjetParams] = useState(null);
   const userMenuRef = useRef(null);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(
+    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
+  );
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    
+    // Detect if app was installed
+    window.addEventListener('appinstalled', () => {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+      setIsStandalone(true);
+    });
+    
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+    }
+  };
 
   // Charger les paramètres du projet
   const fetchProjetParams = () => {
@@ -90,6 +125,35 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* PWA Install Banner */}
+      {showInstallBanner && !isStandalone && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-6 md:bottom-6 md:w-96 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl shadow-2xl p-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Download className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Installer Logi-Track</p>
+              <p className="text-xs text-primary-100">Accès rapide en plein écran, comme une app native</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowInstallBanner(false)}
+                className="text-xs text-primary-200 hover:text-white px-2 py-1"
+              >
+                Plus tard
+              </button>
+              <button
+                onClick={handleInstall}
+                className="bg-white text-primary-700 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-primary-50 transition-colors"
+              >
+                Installer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar mobile */}
       <div className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-900/50" onClick={() => setSidebarOpen(false)} />
