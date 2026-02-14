@@ -247,6 +247,10 @@ const defaultTranslations = {
   'comptes.nouveau_compte': 'Nouveau compte',
   'comptes.confirmer_suppression': 'Êtes-vous sûr de vouloir supprimer',
   'comptes.action_irreversible': 'Cette action est irréversible',
+  'comptes.role_direction': 'Rôle Direction',
+  'comptes.direction_none': 'Aucun',
+  'comptes.direction_chef_projet': 'Chef de Projet',
+  'comptes.direction_chef_chantier': 'Chef de Chantier',
 
   // Departments
   'dept.production': 'Production',
