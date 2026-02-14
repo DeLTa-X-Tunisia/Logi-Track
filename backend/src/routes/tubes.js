@@ -941,6 +941,18 @@ router.get('/:id/pdf', async (req, res) => {
     const statutLabels = { valide: 'Validé', non_conforme: 'Non Conforme', saute: 'Passée', en_cours: 'En cours', en_attente: 'En attente' };
     const statutColors = { valide: green, non_conforme: red, saute: amber, en_cours: accent, en_attente: gray };
 
+    // Helper formatage durée pour PDF
+    function formatDurationPdf(ms) {
+      if (!ms || ms <= 0) return '-';
+      const totalSec = Math.floor(ms / 1000);
+      const days = Math.floor(totalSec / 86400);
+      const hours = Math.floor((totalSec % 86400) / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      if (days > 0) return `${days}j ${hours}h ${mins}min`;
+      if (hours > 0) return `${hours}h ${mins}min`;
+      return `${mins}min`;
+    }
+
     for (const etape of etapes) {
       // Check if we need a new page
       if (doc.y > doc.page.height - 120) {
@@ -969,13 +981,32 @@ router.get('/:id/pdf', async (req, res) => {
 
       doc.y = y + 14;
 
-      // Opérateur + date
+      // Opérateur + date + durée
       if (etape.operateur_prenom || etape.completed_at) {
         let info = '';
         if (etape.operateur_prenom) info += `Par ${etape.operateur_prenom} ${(etape.operateur_nom || '')[0] || ''}.`;
         if (etape.completed_at) info += ` le ${new Date(etape.completed_at).toLocaleString('fr-FR')}`;
+        // Durée de l'étape
+        if (etape.started_at && etape.completed_at) {
+          const durationMs = new Date(etape.completed_at) - new Date(etape.started_at);
+          info += ` · Durée: ${formatDurationPdf(durationMs)}`;
+        }
         doc.fillColor(gray).fontSize(7).font('Helvetica').text(info.trim(), 65, doc.y);
         doc.y += 12;
+      }
+
+      // Délai inter-étape
+      if (etape.etape_numero > 1) {
+        const prevEtape = etapes.find(e => e.etape_numero === etape.etape_numero - 1);
+        if (prevEtape?.completed_at && etape.started_at) {
+          const delayMs = new Date(etape.started_at) - new Date(prevEtape.completed_at);
+          if (delayMs > 60000) { // > 1 min
+            const isLong = delayMs > 3600000; // > 1h
+            doc.fillColor(isLong ? amber : gray).fontSize(6.5).font('Helvetica-Oblique')
+               .text(`⏱ Attente avant cette étape : ${formatDurationPdf(delayMs)}`, 65, doc.y);
+            doc.y += 10;
+          }
+        }
       }
 
       // Commentaire
@@ -1030,14 +1061,131 @@ router.get('/:id/pdf', async (req, res) => {
     }
 
     // =========================================
-    // TRAÇABILITÉ
+    // ANALYSE DES TEMPS
     // =========================================
-    if (doc.y > doc.page.height - 100) {
+    if (doc.y > doc.page.height - 200) {
       drawFooter();
       doc.addPage();
     }
 
     doc.y += 10;
+    doc.fillColor(primary).fontSize(11).font('Helvetica-Bold')
+       .text('ANALYSE DES TEMPS', 40, doc.y);
+    doc.y += 5;
+    doc.strokeColor(accent).lineWidth(1).moveTo(40, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+    doc.y += 10;
+
+    // Tableau des temps
+    const timeColWidths = [130, 90, 90, 90, pageWidth - 400 > 50 ? pageWidth - 400 : 50];
+    const timeHeaders = ['Étape', 'Début', 'Fin', 'Durée', 'Attente avant'];
+
+    // Header row
+    let tx = 45;
+    timeHeaders.forEach((h, i) => {
+      doc.rect(tx, doc.y, timeColWidths[i], 14).fill('#eef2ff');
+      doc.fillColor(primary).fontSize(6.5).font('Helvetica-Bold')
+         .text(h, tx + 3, doc.y + 4, { width: timeColWidths[i] - 6 });
+      tx += timeColWidths[i];
+    });
+    doc.y += 14;
+
+    let totalProductionMs = 0;
+    let totalWaitMs = 0;
+    let longestEtape = { name: '-', duration: 0 };
+    let longestWait = { from: '-', to: '-', duration: 0 };
+
+    for (const etape of etapes) {
+      if (doc.y > doc.page.height - 60) {
+        drawFooter();
+        doc.addPage();
+      }
+
+      const etapeName = `${etape.etape_numero}. ${ETAPE_NOMS[etape.etape_numero] || etape.etape_code}`;
+      const debut = etape.started_at ? new Date(etape.started_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+      const fin = etape.completed_at ? new Date(etape.completed_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+
+      let duration = '-';
+      let durationMs = 0;
+      if (etape.started_at && etape.completed_at) {
+        durationMs = new Date(etape.completed_at) - new Date(etape.started_at);
+        duration = formatDurationPdf(durationMs);
+        totalProductionMs += durationMs;
+        if (durationMs > longestEtape.duration) {
+          longestEtape = { name: etapeName, duration: durationMs };
+        }
+      } else if (etape.started_at && !etape.completed_at) {
+        duration = 'En cours';
+      }
+
+      let waitStr = '-';
+      let waitMs = 0;
+      if (etape.etape_numero > 1) {
+        const prev = etapes.find(e => e.etape_numero === etape.etape_numero - 1);
+        if (prev?.completed_at && etape.started_at) {
+          waitMs = new Date(etape.started_at) - new Date(prev.completed_at);
+          if (waitMs > 60000) {
+            waitStr = formatDurationPdf(waitMs);
+            totalWaitMs += waitMs;
+            if (waitMs > longestWait.duration) {
+              const prevName = ETAPE_NOMS[prev.etape_numero] || prev.etape_code;
+              longestWait = { from: prevName, to: ETAPE_NOMS[etape.etape_numero] || etape.etape_code, duration: waitMs };
+            }
+          }
+        }
+      }
+
+      const isLongWait = waitMs > 3600000;
+      const rowColor = etape.statut === 'non_conforme' ? '#fef2f2' : (etape.etape_numero % 2 === 0 ? '#f9fafb' : 'white');
+
+      tx = 45;
+      const rowData = [etapeName, debut, fin, duration, waitStr];
+      rowData.forEach((val, i) => {
+        doc.rect(tx, doc.y, timeColWidths[i], 12).fill(rowColor);
+        const fontColor = (i === 4 && isLongWait) ? amber : (i === 3 && durationMs > 0) ? '#1e40af' : '#374151';
+        doc.fillColor(fontColor).fontSize(6).font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+           .text(val, tx + 3, doc.y + 3, { width: timeColWidths[i] - 6 });
+        tx += timeColWidths[i];
+      });
+      doc.y += 12;
+    }
+
+    // Résumé des temps
+    doc.y += 8;
+    const totalMs = totalProductionMs + totalWaitMs;
+    const firstStarted = etapes.find(e => e.started_at);
+    const lastCompleted = [...etapes].reverse().find(e => e.completed_at);
+    const totalElapsed = (firstStarted && lastCompleted) ? new Date(lastCompleted.completed_at) - new Date(firstStarted.started_at) : 0;
+
+    doc.rect(45, doc.y, pageWidth - 5, 48).fillAndStroke('#f0f9ff', '#bfdbfe');
+    const summY = doc.y + 5;
+
+    doc.fillColor(primary).fontSize(8).font('Helvetica-Bold').text('Résumé des temps', 55, summY);
+    doc.y = summY + 12;
+
+    const summaryItems = [
+      [`Temps total écoulé : ${totalElapsed > 0 ? formatDurationPdf(totalElapsed) : '-'}`, `Temps de production : ${formatDurationPdf(totalProductionMs)}`],
+      [`Temps d'attente cumulé : ${formatDurationPdf(totalWaitMs)}`, `Efficacité : ${totalElapsed > 0 ? Math.round((totalProductionMs / totalElapsed) * 100) : 0}%`],
+      [`Étape la plus longue : ${longestEtape.name} (${formatDurationPdf(longestEtape.duration)})`, longestWait.duration > 0 ? `Plus long délai : ${longestWait.from} → ${longestWait.to} (${formatDurationPdf(longestWait.duration)})` : 'Plus long délai : -'],
+    ];
+
+    summaryItems.forEach(row => {
+      row.forEach((text, i) => {
+        doc.fillColor('#1e3a5f').fontSize(6.5).font('Helvetica')
+           .text(text, 55 + i * (pageWidth / 2 - 15), doc.y, { width: pageWidth / 2 - 20 });
+      });
+      doc.y += 10;
+    });
+
+    doc.y += 12;
+
+    // =========================================
+    // TRAÇABILITÉ
+    // =========================================
+    if (doc.y > doc.page.height - 80) {
+      drawFooter();
+      doc.addPage();
+    }
+
     doc.fillColor(primary).fontSize(11).font('Helvetica-Bold')
        .text('TRAÇABILITÉ', 40, doc.y);
     doc.y += 5;
@@ -1047,6 +1195,7 @@ router.get('/:id/pdf', async (req, res) => {
     const traceItems = [
       { label: 'Création', value: tube.created_at ? new Date(tube.created_at).toLocaleString('fr-FR') : '-' },
       { label: 'Fin production', value: tube.date_fin_production ? new Date(tube.date_fin_production).toLocaleString('fr-FR') : '-' },
+      { label: 'Durée totale', value: totalElapsed > 0 ? formatDurationPdf(totalElapsed) : '-' },
       { label: 'Décision le', value: tube.decision_date ? new Date(tube.decision_date).toLocaleString('fr-FR') : '-' },
       { label: 'Nombre photos', value: String(photos.length) },
     ];

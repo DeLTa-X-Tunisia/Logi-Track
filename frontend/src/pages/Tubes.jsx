@@ -44,6 +44,30 @@ const STATUT_COLORS = {
   rebut: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Rebut', icon: Ban },
 };
 
+// Formatter une durée en texte lisible
+function formatDuration(ms) {
+  if (!ms || ms < 0) return '-';
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  if (days > 0) return `${days}j ${hours}h ${mins}min`;
+  if (hours > 0) return `${hours}h ${mins}min`;
+  return `${mins}min`;
+}
+
+// Calculer durée d'une étape (started_at -> completed_at)
+function getEtapeDuration(etape) {
+  if (!etape?.started_at || !etape?.completed_at) return null;
+  return new Date(etape.completed_at) - new Date(etape.started_at);
+}
+
+// Calculer délai inter-étape (completed_at étape N -> started_at étape N+1)
+function getInterDelay(prevEtape, nextEtape) {
+  if (!prevEtape?.completed_at || !nextEtape?.started_at) return null;
+  return new Date(nextEtape.started_at) - new Date(prevEtape.completed_at);
+}
+
 const ETAPE_STATUT_COLORS = {
   en_attente:    { bg: 'bg-gray-200',   ring: 'ring-gray-300',   text: 'text-gray-400' },
   en_cours:      { bg: 'bg-blue-500',   ring: 'ring-blue-400',   text: 'text-white' },
@@ -1247,6 +1271,40 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
               style={{ width: `${progression}%` }}
             />
           </div>
+          {/* Résumé temps */}
+          {(() => {
+            const sortedEtapes = (tube.etapes || []).filter(e => e.started_at).sort((a, b) => a.etape_numero - b.etape_numero);
+            if (sortedEtapes.length === 0) return null;
+            const first = sortedEtapes[0];
+            const lastCompleted = [...(tube.etapes || [])].reverse().find(e => e.completed_at);
+            const totalElapsed = lastCompleted ? new Date(lastCompleted.completed_at) - new Date(first.started_at) : (new Date() - new Date(first.started_at));
+            let totalProd = 0, totalWait = 0;
+            for (const e of tube.etapes || []) {
+              if (e.started_at && e.completed_at) totalProd += new Date(e.completed_at) - new Date(e.started_at);
+              if (e.etape_numero > 1 && e.started_at) {
+                const prev = (tube.etapes || []).find(p => p.etape_numero === e.etape_numero - 1);
+                if (prev?.completed_at) { const w = new Date(e.started_at) - new Date(prev.completed_at); if (w > 0) totalWait += w; }
+              }
+            }
+            const efficiency = totalElapsed > 0 ? Math.round((totalProd / totalElapsed) * 100) : 0;
+            return (
+              <div className="flex items-center gap-3 mt-2 text-xs">
+                <span className="inline-flex items-center gap-1 text-blue-600">
+                  <Clock className="w-3 h-3" /> Total: {formatDuration(totalElapsed)}
+                </span>
+                <span className="text-gray-400">·</span>
+                <span className="text-green-600">Production: {formatDuration(totalProd)}</span>
+                {totalWait > 60000 && <>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-amber-600">Attente: {formatDuration(totalWait)}</span>
+                </>}
+                <span className="text-gray-400">·</span>
+                <span className={`font-medium ${efficiency >= 70 ? 'text-green-600' : efficiency >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+                  Efficacité: {efficiency}%
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Contenu scrollable */}
@@ -1379,15 +1437,39 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
                       {/* Info validation */}
                       {(statut === 'valide' || statut === 'non_conforme' || statut === 'saute') && tubeEtape && (
                         <div className="mt-2 text-xs text-gray-500">
-                          {tubeEtape.operateur_prenom && (
-                            <span>Par {tubeEtape.operateur_prenom} {tubeEtape.operateur_nom?.[0]}. </span>
-                          )}
-                          {tubeEtape.completed_at && (
-                            <span>le {new Date(tubeEtape.completed_at).toLocaleString('fr-FR')}</span>
-                          )}
-                          {statut === 'saute' && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">PASSÉE</span>
-                          )}
+                          <div className="flex items-center flex-wrap gap-x-2">
+                            {tubeEtape.operateur_prenom && (
+                              <span>Par {tubeEtape.operateur_prenom} {tubeEtape.operateur_nom?.[0]}. </span>
+                            )}
+                            {tubeEtape.completed_at && (
+                              <span>le {new Date(tubeEtape.completed_at).toLocaleString('fr-FR')}</span>
+                            )}
+                            {statut === 'saute' && (
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">PASSÉE</span>
+                            )}
+                            {(() => {
+                              const dur = getEtapeDuration(tubeEtape);
+                              if (!dur) return null;
+                              return (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
+                                  <Clock className="w-3 h-3" /> {formatDuration(dur)}
+                                </span>
+                              );
+                            })()}
+                            {(() => {
+                              const prevEtape = (tube.etapes || []).find(e => e.etape_numero === etapeDef.numero - 1);
+                              const delay = getInterDelay(prevEtape, tubeEtape);
+                              if (!delay || delay < 60000) return null; // Skip if < 1min
+                              const isLong = delay > 3600000; // > 1h
+                              return (
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-medium ${
+                                  isLong ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  ⏱ attente {formatDuration(delay)}
+                                </span>
+                              );
+                            })()}
+                          </div>
                           {tubeEtape.commentaire && (
                             <p className="mt-1 italic text-gray-600 flex items-start gap-1">
                               <MessageSquare className="w-3 h-3 mt-0.5 flex-shrink-0" />
