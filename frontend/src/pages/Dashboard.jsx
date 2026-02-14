@@ -144,18 +144,18 @@ export default function Dashboard() {
           trend={`${tubes.termines_jour} ${t('dashboard.aujourdhui')}`}
         />
         <StatCard
-          title={t('dashboard.certifie_api', 'Certifié API')}
+          title={t('dashboard.certifie_api')}
           value={tubes.certifie_api || 0}
           icon={ShieldCheck}
           color="warning"
-          trend={`${tubes.total > 0 ? ((tubes.certifie_api / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total', 'du total')}`}
+          trend={`${tubes.total > 0 ? ((tubes.certifie_api / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total')}`}
         />
         <StatCard
-          title={t('dashboard.certifie_hydraulique', 'Certifié Hydraulique')}
+          title={t('dashboard.certifie_hydraulique')}
           value={tubes.certifie_hydraulique || 0}
           icon={Award}
           color="info"
-          trend={`${tubes.total > 0 ? ((tubes.certifie_hydraulique / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total', 'du total')}`}
+          trend={`${tubes.total > 0 ? ((tubes.certifie_hydraulique / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total')}`}
         />
         <StatCard
           title={t('dashboard.rebuts')}
