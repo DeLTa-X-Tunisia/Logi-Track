@@ -104,6 +104,20 @@ app.use('/api/dashboard', authenticateToken, dashboardRoutes); // Dashboard stat
 app.use('/api/fournisseurs', fournisseursRoutes); // Gestion des fournisseurs
 app.use('/api/notifications', authenticateToken, notificationsRoutes); // Notifications
 
+// Route de découverte pour l'app Android (fallback HTTP, publique)
+app.get('/api/discover', (req, res) => {
+  const os = require('os');
+  const nets = os.networkInterfaces();
+  const localIP = Object.values(nets).flat().find(i => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
+  res.json({ 
+    service: 'LogiTrack', 
+    version: '2.0.0', 
+    ip: localIP, 
+    port: PORT,
+    httpsPort: hasSSL ? HTTPS_PORT : null 
+  });
+});
+
 // Socket.io - Gestion des connexions temps réel
 io.on('connection', (socket) => {
   console.log(`🔌 Client connecté: ${socket.id}`);
@@ -166,11 +180,29 @@ app.use((err, req, res, next) => {
   });
 });
 
+// --- mDNS / Bonjour : annonce du service LogiTrack sur le réseau local ---
+const { Bonjour } = require('bonjour-service');
+const bonjour = new Bonjour();
+
+function publishMdns() {
+  bonjour.publish({
+    name: 'LogiTrack-Server',
+    type: 'logitrack',
+    protocol: 'tcp',
+    port: PORT,
+    txt: { version: '2.0.0', path: '/' }
+  });
+  console.log('📡 mDNS: service _logitrack._tcp publié sur le réseau local');
+}
+
 // Démarrage du serveur avec Socket.io
 server.listen(PORT, '0.0.0.0', () => {
   const os = require('os');
   const nets = os.networkInterfaces();
   const localIP = Object.values(nets).flat().find(i => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
+  
+  // Publier le service mDNS après démarrage
+  publishMdns();
   
   console.log('');
   console.log('╔═══════════════════════════════════════════════════════════════╗');
@@ -181,6 +213,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('║   des tubes spirale                                           ║');
   console.log('║                                                               ║');
   console.log(`║   🚀 http://localhost:${PORT}                                  ║`);
+  console.log(`║   📡 mDNS: _logitrack._tcp (découverte auto Android)          ║`);
   if (hasSSL) {
     console.log(`║   🔒 https://localhost:${HTTPS_PORT}  (HTTPS/SSL)               ║`);
     console.log(`║   📱 Android: https://${localIP}:${HTTPS_PORT}             ║`);

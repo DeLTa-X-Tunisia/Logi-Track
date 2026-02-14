@@ -73,6 +73,17 @@ LogiTrack-Launcher/obj/
 LogiTrack-Launcher/publish/
 *.user
 
+# Android mobile app build artifacts
+logitrack-mobile/.gradle/
+logitrack-mobile/app/build/
+logitrack-mobile/build/
+logitrack-mobile/local.properties
+logitrack-mobile/*.iml
+logitrack-mobile/.idea/
+logitrack-mobile/captures/
+logitrack-mobile/*.apk
+logitrack-mobile/*.keystore
+
 # SSL certificates (auto-generated, sensitive)
 backend/ssl/
 test_cert.pdf

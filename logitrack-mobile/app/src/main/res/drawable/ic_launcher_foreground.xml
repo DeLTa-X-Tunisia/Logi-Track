@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground de l'icône adaptative (logo blanc sur fond transparent) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Usine silhouette (centrée dans la safe zone 66x66 à partir de 21,21) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,72 L30,48 L40,40 L40,48 L50,40 L50,48 L60,40 L60,72 Z" />
+
+    <!-- Cheminée -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,48 L34,34 L38,34 L38,48 Z" />
+
+    <!-- Tube pipeline -->
+    <path
+        android:fillColor="#bfdbfe"
+        android:pathData="M63,50 L84,50 L84,58 L63,58 Z" />
+
+    <!-- Raccord tube -->
+    <path
+        android:fillColor="#93c5fd"
+        android:pathData="M81,46 L88,46 L88,62 L81,62 Z" />
+
+    <!-- Fenêtres -->
+    <path
+        android:fillColor="#1e40af"
+        android:pathData="M36,55 L42,55 L42,64 L36,64 Z" />
+    <path
+        android:fillColor="#1e40af"
+        android:pathData="M47,55 L53,55 L53,64 L47,64 Z" />
+
+</vector>

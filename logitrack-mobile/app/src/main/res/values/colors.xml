@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary (Blue) — Même palette que le frontend Tailwind -->
+    <color name="primary_50">#FFeff6ff</color>
+    <color name="primary_100">#FFdbeafe</color>
+    <color name="primary_200">#FFbfdbfe</color>
+    <color name="primary_300">#FF93c5fd</color>
+    <color name="primary_400">#FF60a5fa</color>
+    <color name="primary_500">#FF3b82f6</color>
+    <color name="primary_600">#FF2563eb</color>
+    <color name="primary_700">#FF1d4ed8</color>
+    <color name="primary_800">#FF1e40af</color>
+    <color name="primary_900">#FF1e3a8a</color>
+
+    <!-- Neutral -->
+    <color name="background">#FFF9FAFB</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="text_primary">#FF111827</color>
+    <color name="text_secondary">#FF6B7280</color>
+
+    <!-- Status bar -->
+    <color name="status_bar">#FF1e3a8a</color>
+
+    <!-- Splash -->
+    <color name="splash_bg">#FF1e40af</color>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LogiTrack</string>
+    <string name="splash_subtitle">Suivi de production API 5L</string>
+    <string name="version_text">LogiTrack v2.0.0 — DeLTa-X Tunisia</string>
+    
+    <!-- Config -->
+    <string name="config_header">Configuration de la connexion serveur</string>
+    <string name="discovery_searching">Recherche du serveur LogiTrack sur le réseau…</string>
+    <string name="btn_connect_server">Se connecter à ce serveur</string>
+    <string name="btn_retry">Réessayer</string>
+    <string name="btn_manual_config">⚙️  Configurer manuellement</string>
+    <string name="btn_test_connect">Tester et connecter</string>
+    <string name="btn_back_auto">← Retour à la détection automatique</string>
+    <string name="manual_instructions">Entrez l\'adresse IP du PC serveur visible dans la console LogiTrack.</string>
+</resources>

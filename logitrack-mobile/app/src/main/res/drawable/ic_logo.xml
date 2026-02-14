@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo LogiTrack — Icône d'usine/tube stylisée -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- Fond cercle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,8 A56,56 0 1,1 64,120 A56,56 0 1,1 64,8 Z" />
+
+    <!-- Usine silhouette -->
+    <path
+        android:fillColor="#1e40af"
+        android:pathData="M24,90 L24,50 L38,38 L38,50 L52,38 L52,50 L66,38 L66,90 Z" />
+
+    <!-- Cheminée -->
+    <path
+        android:fillColor="#1e40af"
+        android:pathData="M30,50 L30,30 L36,30 L36,50 Z" />
+
+    <!-- Fumée -->
+    <path
+        android:fillColor="#93c5fd"
+        android:pathData="M33,30 Q28,22 33,18 Q38,14 33,8"
+        android:strokeWidth="2.5"
+        android:strokeColor="#93c5fd"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Tube (pipeline) -->
+    <path
+        android:fillColor="#3b82f6"
+        android:pathData="M70,55 L104,55 L104,65 L70,65 Z" />
+
+    <!-- Raccord tube -->
+    <path
+        android:fillColor="#2563eb"
+        android:pathData="M100,50 L108,50 L108,70 L100,70 Z" />
+
+    <!-- Fenêtres usine -->
+    <path
+        android:fillColor="#dbeafe"
+        android:pathData="M32,60 L40,60 L40,72 L32,72 Z" />
+    <path
+        android:fillColor="#dbeafe"
+        android:pathData="M46,60 L54,60 L54,72 L46,72 Z" />
+
+    <!-- Texte LT (LogiTrack initiales) -->
+    <path
+        android:fillColor="#1e40af"
+        android:pathData="M74,74 L74,92 L80,92 L80,80 L86,80 L86,92 L92,92 L92,74 Z" />
+
+</vector>
