@@ -20,7 +20,9 @@ router.get('/stats', async (req, res) => {
         SUM(CASE WHEN statut = 'termine' THEN 1 ELSE 0 END) as termines,
         SUM(CASE WHEN statut = 'rebut' THEN 1 ELSE 0 END) as rebuts,
         SUM(CASE WHEN statut = 'reparation' THEN 1 ELSE 0 END) as reparation,
-        SUM(CASE WHEN statut = 'attente' THEN 1 ELSE 0 END) as attente
+        SUM(CASE WHEN statut = 'attente' THEN 1 ELSE 0 END) as attente,
+        SUM(CASE WHEN decision = 'certifie_api' THEN 1 ELSE 0 END) as certifie_api,
+        SUM(CASE WHEN decision = 'certifie_hydraulique' THEN 1 ELSE 0 END) as certifie_hydraulique
       FROM tubes
     `);
 
@@ -135,6 +137,8 @@ router.get('/stats', async (req, res) => {
         rebuts: tubeStats[0]?.rebuts || 0,
         reparation: tubeStats[0]?.reparation || 0,
         attente: tubeStats[0]?.attente || 0,
+        certifie_api: tubeStats[0]?.certifie_api || 0,
+        certifie_hydraulique: tubeStats[0]?.certifie_hydraulique || 0,
         production_jour: prodJour[0]?.count || 0,
         termines_jour: terminesJour[0]?.count || 0,
       },

@@ -22,7 +22,8 @@ import {
   Zap,
   Ruler,
   SearchCheck,
-  Gauge
+  Gauge,
+  ShieldCheck
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -127,7 +128,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards principaux */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard
           title={t('dashboard.tubes_en_cours')}
           value={tubes.en_cours}
@@ -141,6 +142,20 @@ export default function Dashboard() {
           icon={CheckCircle}
           color="success"
           trend={`${tubes.termines_jour} ${t('dashboard.aujourdhui')}`}
+        />
+        <StatCard
+          title={t('dashboard.certifie_api', 'Certifié API')}
+          value={tubes.certifie_api || 0}
+          icon={ShieldCheck}
+          color="warning"
+          trend={`${tubes.total > 0 ? ((tubes.certifie_api / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total', 'du total')}`}
+        />
+        <StatCard
+          title={t('dashboard.certifie_hydraulique', 'Certifié Hydraulique')}
+          value={tubes.certifie_hydraulique || 0}
+          icon={Award}
+          color="info"
+          trend={`${tubes.total > 0 ? ((tubes.certifie_hydraulique / tubes.total) * 100).toFixed(0) : 0}% ${t('dashboard.du_total', 'du total')}`}
         />
         <StatCard
           title={t('dashboard.rebuts')}
@@ -293,6 +308,8 @@ function StatCard({ title, value, icon: Icon, color, trend }) {
     success: { bg: 'bg-success-50', text: 'text-success-600', icon: 'bg-success-100' },
     danger: { bg: 'bg-danger-50', text: 'text-danger-600', icon: 'bg-danger-100' },
     accent: { bg: 'bg-accent-50', text: 'text-accent-600', icon: 'bg-accent-100' },
+    warning: { bg: 'bg-amber-50', text: 'text-amber-600', icon: 'bg-amber-100' },
+    info: { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'bg-blue-100' },
   };
 
   const colorConfig = colors[color] || colors.primary;
