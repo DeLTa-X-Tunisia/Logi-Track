@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
+const fs = require('fs');
+const path = require('path');
+const { uploadTubeEtapePhotos, tubesUploadsDir } = require('../config/upload');
 
 // ============================================
 // Définition des 12 étapes de production
@@ -634,12 +637,450 @@ router.put('/:id/decision', async (req, res) => {
 });
 
 // ============================================
+// ROUTES PHOTOS D'ÉTAPES
+// ============================================
+
+// GET /api/tubes/:id/etape/:etape/photos - Photos d'une étape
+router.get('/:id/etape/:etape/photos', async (req, res) => {
+  try {
+    const [photos] = await pool.query(`
+      SELECT tep.*, o.nom as uploader_nom, o.prenom as uploader_prenom
+      FROM tube_etape_photos tep
+      LEFT JOIN operateurs o ON tep.uploaded_by = o.id
+      WHERE tep.tube_id = ? AND tep.etape_numero = ?
+      ORDER BY tep.created_at ASC
+    `, [req.params.id, req.params.etape]);
+    res.json(photos);
+  } catch (error) {
+    console.error('Erreur GET photos étape:', error);
+    res.status(500).json({ error: 'Erreur récupération photos' });
+  }
+});
+
+// GET /api/tubes/:id/photos - Toutes les photos d'un tube (toutes étapes)
+router.get('/:id/photos', async (req, res) => {
+  try {
+    const [photos] = await pool.query(`
+      SELECT tep.*, o.nom as uploader_nom, o.prenom as uploader_prenom
+      FROM tube_etape_photos tep
+      LEFT JOIN operateurs o ON tep.uploaded_by = o.id
+      WHERE tep.tube_id = ?
+      ORDER BY tep.etape_numero ASC, tep.created_at ASC
+    `, [req.params.id]);
+    res.json(photos);
+  } catch (error) {
+    console.error('Erreur GET all photos tube:', error);
+    res.status(500).json({ error: 'Erreur récupération photos' });
+  }
+});
+
+// POST /api/tubes/:id/etape/:etape/photos - Upload photos pour une étape
+router.post('/:id/etape/:etape/photos', uploadTubeEtapePhotos.array('photos', 5), async (req, res) => {
+  try {
+    const tubeId = req.params.id;
+    const etapeNumero = parseInt(req.params.etape);
+    const uploaded_by = req.user?.operateurId || req.user?.userId || null;
+    const description = req.body.description || null;
+
+    // Vérifier que le tube existe
+    const [tube] = await pool.query('SELECT id FROM tubes WHERE id = ?', [tubeId]);
+    if (tube.length === 0) {
+      if (req.files) req.files.forEach(f => fs.unlinkSync(f.path));
+      return res.status(404).json({ error: 'Tube non trouvé' });
+    }
+
+    // Vérifier le nombre de photos pour cette étape (max 10)
+    const [existing] = await pool.query(
+      'SELECT COUNT(*) as count FROM tube_etape_photos WHERE tube_id = ? AND etape_numero = ?',
+      [tubeId, etapeNumero]
+    );
+    const newCount = req.files ? req.files.length : 0;
+    if (existing[0].count + newCount > 10) {
+      if (req.files) req.files.forEach(f => fs.unlinkSync(f.path));
+      return res.status(400).json({ 
+        error: `Maximum 10 photos par étape. Actuellement: ${existing[0].count}` 
+      });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    const insertedPhotos = [];
+    for (const file of req.files) {
+      const [result] = await pool.query(
+        `INSERT INTO tube_etape_photos 
+         (tube_id, etape_numero, filename, original_name, mimetype, size, path, description, uploaded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [tubeId, etapeNumero, file.filename, file.originalname, file.mimetype, file.size,
+         `/uploads/tubes/${file.filename}`, description, uploaded_by]
+      );
+      insertedPhotos.push({
+        id: result.insertId,
+        filename: file.filename,
+        original_name: file.originalname,
+        path: `/uploads/tubes/${file.filename}`,
+        etape_numero: etapeNumero
+      });
+    }
+
+    res.json({ message: `${insertedPhotos.length} photo(s) ajoutée(s)`, photos: insertedPhotos });
+  } catch (error) {
+    console.error('Erreur POST photos étape:', error);
+    res.status(500).json({ error: 'Erreur upload photos' });
+  }
+});
+
+// DELETE /api/tubes/:id/photos/:photoId - Supprimer une photo
+router.delete('/:id/photos/:photoId', async (req, res) => {
+  try {
+    const [photo] = await pool.query(
+      'SELECT * FROM tube_etape_photos WHERE id = ? AND tube_id = ?',
+      [req.params.photoId, req.params.id]
+    );
+    if (photo.length === 0) return res.status(404).json({ error: 'Photo non trouvée' });
+
+    // Supprimer le fichier
+    const filePath = path.join(tubesUploadsDir, photo[0].filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    // Supprimer de la base
+    await pool.query('DELETE FROM tube_etape_photos WHERE id = ?', [req.params.photoId]);
+    res.json({ message: 'Photo supprimée' });
+  } catch (error) {
+    console.error('Erreur DELETE photo:', error);
+    res.status(500).json({ error: 'Erreur suppression photo' });
+  }
+});
+
+// ============================================
+// GET /api/tubes/:id/pdf - Rapport PDF du tube avec photos
+// ============================================
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const PDFDocument = require('pdfkit');
+
+    // Récupérer le tube
+    const [tubes] = await pool.query(`
+      SELECT t.*, c.numero as coulee_numero, c2.numero as coulee_numero_2,
+             b.numero as bobine_numero, b.epaisseur as bobine_epaisseur,
+             b.largeur as bobine_largeur, b.poids as bobine_poids,
+             pp.numero as parametre_numero
+      FROM tubes t
+      LEFT JOIN coulees c ON t.coulee_id = c.id
+      LEFT JOIN coulees c2 ON t.coulee_id_2 = c2.id
+      LEFT JOIN bobines b ON c.bobine_id = b.id
+      LEFT JOIN parametres_production pp ON t.parametre_id = pp.id
+      WHERE t.id = ?
+    `, [req.params.id]);
+
+    if (tubes.length === 0) return res.status(404).json({ error: 'Tube non trouvé' });
+    const tube = tubes[0];
+
+    // Récupérer les étapes
+    const [etapes] = await pool.query(
+      'SELECT * FROM tube_etapes WHERE tube_id = ? ORDER BY etape_numero', [tube.id]
+    );
+
+    // Récupérer les photos
+    const [photos] = await pool.query(
+      'SELECT * FROM tube_etape_photos WHERE tube_id = ? ORDER BY etape_numero, created_at', [tube.id]
+    );
+
+    // Grouper photos par étape
+    const photosByEtape = {};
+    for (const p of photos) {
+      if (!photosByEtape[p.etape_numero]) photosByEtape[p.etape_numero] = [];
+      photosByEtape[p.etape_numero].push(p);
+    }
+
+    // Récupérer les paramètres du projet
+    const [projetRows] = await pool.query('SELECT * FROM projet_parametres LIMIT 1');
+    const projet = projetRows.length > 0 ? projetRows[0] : {};
+
+    // Créer le PDF
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 40,
+      info: {
+        Title: `Rapport Tube N°${tube.numero}`,
+        Author: 'LogiTrack',
+        Subject: 'Rapport de production tube spirale'
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=tube_${tube.numero}.pdf`);
+    doc.pipe(res);
+
+    const primary = '#1e40af';
+    const accent = '#2563eb';
+    const gray = '#6b7280';
+    const lightGray = '#f3f4f6';
+    const border = '#e5e7eb';
+    const green = '#16a34a';
+    const red = '#dc2626';
+    const amber = '#d97706';
+    const pageWidth = doc.page.width - 80;
+
+    const footerText = `LogiTrack — Rapport Tube N°${tube.numero} — ${new Date().toLocaleDateString('fr-FR')}`;
+    const drawFooter = () => {
+      const savedY = doc.y;
+      doc.page.margins.bottom = 0;
+      const footerY = doc.page.height - 35;
+      doc.save();
+      doc.strokeColor(border).lineWidth(0.5)
+         .moveTo(40, footerY - 5).lineTo(40 + pageWidth, footerY - 5).stroke();
+      doc.fillColor(gray).fontSize(7).font('Helvetica')
+         .text(footerText, 40, footerY, { align: 'center', width: pageWidth });
+      doc.restore();
+      doc.page.margins.bottom = 40;
+      doc.y = savedY;
+    };
+
+    // =========================================
+    // HEADER
+    // =========================================
+    doc.rect(40, 40, pageWidth, 60).fillAndStroke(lightGray, border);
+
+    // Logo entreprise
+    const logoMaxH = 40;
+    const logoY = 50;
+    if (projet.logo_path) {
+      try {
+        const logoPath = path.join(__dirname, '../../uploads', projet.logo_path.replace('/uploads/', ''));
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, 50, logoY, { height: logoMaxH });
+        }
+      } catch (e) {}
+    }
+
+    doc.fillColor(primary).fontSize(16).font('Helvetica-Bold')
+       .text(`RAPPORT TUBE N°${tube.numero}`, 40, 55, { align: 'center', width: pageWidth });
+    doc.fillColor(gray).fontSize(8).font('Helvetica')
+       .text(projet.nom_projet || 'LogiTrack', 40, 75, { align: 'center', width: pageWidth });
+
+    doc.y = 115;
+
+    // =========================================
+    // INFORMATIONS GÉNÉRALES
+    // =========================================
+    doc.fillColor(primary).fontSize(11).font('Helvetica-Bold')
+       .text('INFORMATIONS GÉNÉRALES', 40, doc.y);
+    doc.y += 5;
+    doc.strokeColor(accent).lineWidth(1).moveTo(40, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+    doc.y += 10;
+
+    const colW = pageWidth / 3;
+    const infoRows = [
+      [
+        { label: 'Numéro', value: tube.numero },
+        { label: 'Diamètre', value: `${tube.diametre_mm} mm ${tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}` },
+        { label: 'Type', value: tube.type_tube === 'cross_welding' ? 'Cross Welding' : 'Normal' },
+      ],
+      [
+        { label: 'Coulée', value: tube.coulee_numero || '-' },
+        { label: 'Épaisseur', value: tube.epaisseur ? `${tube.epaisseur} mm` : (tube.bobine_epaisseur ? `${tube.bobine_epaisseur} mm` : '-') },
+        { label: 'Longueur', value: tube.longueur ? `${tube.longueur} m` : '-' },
+      ],
+      [
+        { label: 'Bobine', value: tube.bobine_numero || '-' },
+        { label: 'Statut', value: tube.statut === 'termine' ? 'Terminé' : tube.statut === 'en_production' ? 'En production' : tube.statut },
+        { label: 'Paramètres', value: tube.parametre_numero || '-' },
+      ],
+    ];
+
+    for (const row of infoRows) {
+      const y = doc.y;
+      row.forEach((item, i) => {
+        doc.fillColor(gray).fontSize(7).font('Helvetica').text(item.label, 45 + i * colW, y);
+        doc.fillColor('#111827').fontSize(9).font('Helvetica-Bold').text(item.value || '-', 45 + i * colW, y + 10);
+      });
+      doc.y = y + 28;
+    }
+
+    // Décision finale
+    if (tube.decision && tube.decision !== 'en_attente') {
+      doc.y += 5;
+      const decisionLabels = {
+        certifie_api: 'CERTIFIÉ API 5L',
+        certifie_hydraulique: 'CERTIFIÉ HYDRAULIQUE',
+        declasse: 'DÉCLASSÉ'
+      };
+      const decisionColors = {
+        certifie_api: green,
+        certifie_hydraulique: accent,
+        declasse: amber
+      };
+      const dColor = decisionColors[tube.decision] || gray;
+      doc.rect(40, doc.y, pageWidth, 30).fillAndStroke(dColor + '15', dColor);
+      doc.fillColor(dColor).fontSize(11).font('Helvetica-Bold')
+         .text(`Décision : ${decisionLabels[tube.decision] || tube.decision}`, 50, doc.y + 5, { width: pageWidth - 20 });
+      doc.fillColor(gray).fontSize(7).font('Helvetica')
+         .text(`Par ${tube.decision_par || '-'} le ${tube.decision_date ? new Date(tube.decision_date).toLocaleString('fr-FR') : '-'}`, 50, doc.y + 18, { width: pageWidth - 20 });
+      doc.y += 40;
+    }
+
+    // =========================================
+    // ÉTAPES DE PRODUCTION
+    // =========================================
+    doc.y += 5;
+    doc.fillColor(primary).fontSize(11).font('Helvetica-Bold')
+       .text('ÉTAPES DE PRODUCTION', 40, doc.y);
+    doc.y += 5;
+    doc.strokeColor(accent).lineWidth(1).moveTo(40, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+    doc.y += 10;
+
+    const ETAPE_NOMS = {
+      1: 'Formage', 2: 'Pointage (GMAW)', 3: 'CV Pointage',
+      4: 'SAW ID/OD', 5: 'CV Cordon', 6: 'Coupe',
+      7: 'CND (Xray/UT)', 8: 'CV après CND', 9: 'Hydrotest',
+      10: 'CV Fuite/Déform.', 11: 'Chanfrein', 12: 'CV Chanfrein'
+    };
+
+    const statutLabels = { valide: 'Validé', non_conforme: 'Non Conforme', saute: 'Passée', en_cours: 'En cours', en_attente: 'En attente' };
+    const statutColors = { valide: green, non_conforme: red, saute: amber, en_cours: accent, en_attente: gray };
+
+    for (const etape of etapes) {
+      // Check if we need a new page
+      if (doc.y > doc.page.height - 120) {
+        drawFooter();
+        doc.addPage();
+      }
+
+      const sColor = statutColors[etape.statut] || gray;
+      const y = doc.y;
+
+      // Dot
+      doc.circle(52, y + 6, 5).fill(sColor);
+      if (etape.statut === 'valide') {
+        doc.fillColor('white').fontSize(6).font('Helvetica-Bold').text('✓', 49, y + 3);
+      } else if (etape.statut === 'non_conforme') {
+        doc.fillColor('white').fontSize(6).font('Helvetica-Bold').text('✗', 49.5, y + 3);
+      } else {
+        doc.fillColor('white').fontSize(6).font('Helvetica-Bold').text(String(etape.etape_numero), etape.etape_numero >= 10 ? 48 : 49.5, y + 3);
+      }
+
+      // Étape info
+      doc.fillColor('#111827').fontSize(9).font('Helvetica-Bold')
+         .text(`${etape.etape_numero}. ${ETAPE_NOMS[etape.etape_numero] || etape.etape_code}`, 65, y);
+      doc.fillColor(sColor).fontSize(7).font('Helvetica-Bold')
+         .text(statutLabels[etape.statut] || etape.statut, 65 + 180, y + 1);
+
+      doc.y = y + 14;
+
+      // Opérateur + date
+      if (etape.operateur_prenom || etape.completed_at) {
+        let info = '';
+        if (etape.operateur_prenom) info += `Par ${etape.operateur_prenom} ${(etape.operateur_nom || '')[0] || ''}.`;
+        if (etape.completed_at) info += ` le ${new Date(etape.completed_at).toLocaleString('fr-FR')}`;
+        doc.fillColor(gray).fontSize(7).font('Helvetica').text(info.trim(), 65, doc.y);
+        doc.y += 12;
+      }
+
+      // Commentaire
+      if (etape.commentaire) {
+        doc.fillColor('#374151').fontSize(7).font('Helvetica-Oblique')
+           .text(`💬 ${etape.commentaire}`, 65, doc.y, { width: pageWidth - 30 });
+        doc.y += doc.heightOfString(`💬 ${etape.commentaire}`, { width: pageWidth - 30, fontSize: 7 }) + 4;
+      }
+
+      // Photos de l'étape
+      const etapePhotos = photosByEtape[etape.etape_numero] || [];
+      if (etapePhotos.length > 0) {
+        const photoSize = 80;
+        const photoGap = 8;
+        const photosPerRow = Math.floor((pageWidth - 25) / (photoSize + photoGap));
+
+        for (let i = 0; i < etapePhotos.length; i += photosPerRow) {
+          if (doc.y + photoSize + 10 > doc.page.height - 60) {
+            drawFooter();
+            doc.addPage();
+          }
+
+          const rowPhotos = etapePhotos.slice(i, i + photosPerRow);
+          for (let j = 0; j < rowPhotos.length; j++) {
+            const photo = rowPhotos[j];
+            const photoPath = path.join(__dirname, '../../uploads/tubes', photo.filename);
+            if (fs.existsSync(photoPath)) {
+              try {
+                doc.image(photoPath, 65 + j * (photoSize + photoGap), doc.y, {
+                  width: photoSize,
+                  height: photoSize,
+                  fit: [photoSize, photoSize]
+                });
+              } catch (e) {
+                // Skip invalid images
+                doc.rect(65 + j * (photoSize + photoGap), doc.y, photoSize, photoSize)
+                   .fillAndStroke(lightGray, border);
+                doc.fillColor(gray).fontSize(6).text('Image non disponible', 65 + j * (photoSize + photoGap) + 5, doc.y + 35);
+              }
+            }
+          }
+          doc.y += photoSize + 6;
+        }
+      }
+
+      // Ligne séparatrice
+      doc.y += 2;
+      if (etape.etape_numero < 12) {
+        doc.strokeColor(border).lineWidth(0.3).moveTo(65, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+        doc.y += 6;
+      }
+    }
+
+    // =========================================
+    // TRAÇABILITÉ
+    // =========================================
+    if (doc.y > doc.page.height - 100) {
+      drawFooter();
+      doc.addPage();
+    }
+
+    doc.y += 10;
+    doc.fillColor(primary).fontSize(11).font('Helvetica-Bold')
+       .text('TRAÇABILITÉ', 40, doc.y);
+    doc.y += 5;
+    doc.strokeColor(accent).lineWidth(1).moveTo(40, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+    doc.y += 10;
+
+    const traceItems = [
+      { label: 'Création', value: tube.created_at ? new Date(tube.created_at).toLocaleString('fr-FR') : '-' },
+      { label: 'Fin production', value: tube.date_fin_production ? new Date(tube.date_fin_production).toLocaleString('fr-FR') : '-' },
+      { label: 'Décision le', value: tube.decision_date ? new Date(tube.decision_date).toLocaleString('fr-FR') : '-' },
+      { label: 'Nombre photos', value: String(photos.length) },
+    ];
+
+    traceItems.forEach(item => {
+      doc.fillColor(gray).fontSize(7).font('Helvetica').text(item.label + ' :', 45, doc.y, { continued: true });
+      doc.fillColor('#111827').fontSize(8).font('Helvetica-Bold').text('  ' + item.value);
+      doc.y += 4;
+    });
+
+    drawFooter();
+    doc.end();
+
+  } catch (error) {
+    console.error('Erreur GET /tubes/:id/pdf:', error);
+    res.status(500).json({ error: 'Erreur génération PDF' });
+  }
+});
+
+// ============================================
 // DELETE /api/tubes/:id - Supprimer un tube
 // ============================================
 router.delete('/:id', async (req, res) => {
   try {
     const [tube] = await pool.query('SELECT id FROM tubes WHERE id = ?', [req.params.id]);
     if (tube.length === 0) return res.status(404).json({ error: 'Tube non trouvé' });
+
+    // Supprimer les fichiers photos associés
+    const [photos] = await pool.query('SELECT filename FROM tube_etape_photos WHERE tube_id = ?', [req.params.id]);
+    for (const photo of photos) {
+      const filePath = path.join(tubesUploadsDir, photo.filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+
     await pool.query('DELETE FROM tubes WHERE id = ?', [req.params.id]);
     res.json({ message: 'Tube supprimé' });
   } catch (error) {

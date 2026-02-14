@@ -10,11 +10,14 @@ import {
   Play, Cylinder, Flame, Scissors, Scan, Droplet, ChevronDown,
   ChevronUp, ChevronRight, Package, Filter, SkipForward,
   AlertOctagon, RotateCcw, Ban, ShieldCheck, MessageSquare, Wifi, WifiOff,
-  Settings, Edit3, ToggleRight, ToggleLeft, Save, Award, Wrench, Trophy
+  Settings, Edit3, ToggleRight, ToggleLeft, Save, Award, Wrench, Trophy,
+  Camera, ImageIcon, ZoomIn, Download, FileText
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
 import api from '../services/api';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // ============================================
 // Constantes - 12 étapes de production
@@ -996,15 +999,80 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
   const [showNCModal, setShowNCModal] = useState(null); // etape_numero
   const [showResolveModal, setShowResolveModal] = useState(null); // {etape_numero, commentaire}
   const [showPasserModal, setShowPasserModal] = useState(null); // etape_numero
+  const [showValiderModal, setShowValiderModal] = useState(null); // etape_numero
+  const [etapePhotos, setEtapePhotos] = useState({}); // { etape_numero: [photos] }
+  const [photoViewer, setPhotoViewer] = useState(null); // { src, alt }
+
+  // Charger toutes les photos du tube
+  useEffect(() => {
+    const fetchAllPhotos = async () => {
+      try {
+        const res = await api.get(`/tubes/${tube.id}/photos`);
+        const grouped = {};
+        for (const photo of res.data) {
+          if (!grouped[photo.etape_numero]) grouped[photo.etape_numero] = [];
+          grouped[photo.etape_numero].push(photo);
+        }
+        setEtapePhotos(grouped);
+      } catch (e) { console.error('Erreur chargement photos:', e); }
+    };
+    fetchAllPhotos();
+  }, [tube.id]);
+
+  // Upload photos pour une étape
+  const uploadPhotos = async (etapeNumero, files, description) => {
+    if (!files || files.length === 0) return;
+    const formData = new FormData();
+    for (const f of files) formData.append('photos', f);
+    if (description) formData.append('description', description);
+    try {
+      await api.post(`/tubes/${tube.id}/etape/${etapeNumero}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      // Refresh photos
+      const res = await api.get(`/tubes/${tube.id}/photos`);
+      const grouped = {};
+      for (const photo of res.data) {
+        if (!grouped[photo.etape_numero]) grouped[photo.etape_numero] = [];
+        grouped[photo.etape_numero].push(photo);
+      }
+      setEtapePhotos(grouped);
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Erreur upload photos', 'error');
+      return false;
+    }
+  };
+
+  // Supprimer une photo
+  const deletePhoto = async (photoId) => {
+    try {
+      await api.delete(`/tubes/${tube.id}/photos/${photoId}`);
+      setEtapePhotos(prev => {
+        const next = {};
+        for (const [k, v] of Object.entries(prev)) {
+          next[k] = v.filter(p => p.id !== photoId);
+        }
+        return next;
+      });
+      showToast('Photo supprimée', 'success');
+    } catch (err) {
+      showToast('Erreur suppression photo', 'error');
+    }
+  };
 
   const statutInfo = STATUT_COLORS[tube.statut] || STATUT_COLORS.en_production;
   const etapesValidees = (tube.etapes || []).filter(e => e.statut === 'valide').length;
   const progression = Math.round((etapesValidees / 12) * 100);
 
-  // Valider une étape
-  const validerEtape = async (etapeNumero) => {
+  // Valider une étape (with optional photos)
+  const validerEtape = async (etapeNumero, photos = null) => {
     setLoading(true);
     try {
+      // Upload photos first if provided
+      if (photos && photos.length > 0) {
+        await uploadPhotos(etapeNumero, photos);
+      }
       const response = await api.put(`/tubes/${tube.id}/valider-etape`, {
         etape_numero: etapeNumero,
         commentaire: commentaire || null
@@ -1053,10 +1121,14 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
     }
   };
 
-  // Marquer non conforme
-  const marquerNC = async (etapeNumero, comment) => {
+  // Marquer non conforme (with optional photos)
+  const marquerNC = async (etapeNumero, comment, photos = null) => {
     setLoading(true);
     try {
+      // Upload photos first if provided
+      if (photos && photos.length > 0) {
+        await uploadPhotos(etapeNumero, photos);
+      }
       const response = await api.put(`/tubes/${tube.id}/non-conforme`, {
         etape_numero: etapeNumero,
         commentaire: comment
@@ -1116,7 +1188,28 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
               {statutInfo.label}
             </span>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                try {
+                  const res = await api.get(`/tubes/${tube.id}/pdf`, { responseType: 'blob' });
+                  const url = window.URL.createObjectURL(new Blob([res.data]));
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `tube_${tube.numero}.pdf`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  showToast('Rapport PDF téléchargé', 'success');
+                } catch (err) {
+                  showToast('Erreur génération PDF', 'error');
+                }
+              }}
+              className="p-2 hover:bg-blue-100 rounded-lg text-blue-600" title="Télécharger rapport PDF"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         {/* Barre de progression */}
@@ -1221,7 +1314,7 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
                           {statut === 'en_cours' && (
                             <>
                               <button
-                                onClick={() => validerEtape(etapeDef.numero)}
+                                onClick={() => setShowValiderModal(etapeDef.numero)}
                                 disabled={loading}
                                 className="flex items-center gap-1 px-2.5 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-50"
                               >
@@ -1281,17 +1374,41 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
                               {tubeEtape.commentaire}
                             </p>
                           )}
+                          {/* Photos de l'étape */}
+                          {(etapePhotos[etapeDef.numero] || []).length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {(etapePhotos[etapeDef.numero] || []).map(photo => (
+                                <div key={photo.id} className="relative group">
+                                  <img
+                                    src={`${API_URL}${photo.path}`}
+                                    alt={photo.original_name}
+                                    className="w-12 h-12 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => setPhotoViewer({ src: `${API_URL}${photo.path}`, alt: photo.original_name })}
+                                  />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deletePhoto(photo.id); }}
+                                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              ))}
+                              <span className="flex items-center gap-0.5 text-xs text-gray-400">
+                                <Camera className="w-3 h-3" /> {(etapePhotos[etapeDef.numero] || []).length}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Champ commentaire pour étape en cours */}
+                      {/* Champ commentaire pour étape en cours + inline upload */}
                       {statut === 'en_cours' && (
-                        <div className="mt-2">
+                        <div className="mt-2 flex gap-2">
                           <input
                             type="text"
                             value={commentaire}
                             onChange={e => setCommentaire(e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500"
+                            className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500"
                             placeholder="Commentaire (optionnel)..."
                           />
                         </div>
@@ -1310,21 +1427,38 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
         </div>
       </div>
 
-      {/* Modal Non-Conformité */}
+      {/* Modal Valider Étape (avec photos) */}
+      {showValiderModal && (
+        <ValiderModal
+          etapeNumero={showValiderModal}
+          onSubmit={(comment, photos) => {
+            validerEtape(showValiderModal, photos);
+            setShowValiderModal(null);
+          }}
+          onClose={() => setShowValiderModal(null)}
+          loading={loading}
+        />
+      )}
+
+      {/* Modal Non-Conformité (avec photos) */}
       {showNCModal && (
         <NCModal
           etapeNumero={showNCModal}
-          onSubmit={(comment) => marquerNC(showNCModal, comment)}
+          onSubmit={(comment, photos) => marquerNC(showNCModal, comment, photos)}
           onClose={() => setShowNCModal(null)}
           loading={loading}
         />
       )}
 
-      {/* Modal Passer (ignorer) étape */}
+      {/* Modal Passer (ignorer) étape (avec photos) */}
       {showPasserModal && (
         <PasserModal
           etapeNumero={showPasserModal}
-          onSubmit={(motif) => { sauterEtape(showPasserModal, motif); setShowPasserModal(null); }}
+          onSubmit={(motif, photos) => {
+            uploadPhotos(showPasserModal, photos);
+            sauterEtape(showPasserModal, motif);
+            setShowPasserModal(null);
+          }}
           onClose={() => setShowPasserModal(null)}
           loading={loading}
         />
@@ -1338,6 +1472,24 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
           onClose={() => setShowResolveModal(null)}
           loading={loading}
         />
+      )}
+
+      {/* Photo Viewer */}
+      {photoViewer && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4" onClick={() => setPhotoViewer(null)}>
+          <button
+            onClick={() => setPhotoViewer(null)}
+            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={photoViewer.src}
+            alt={photoViewer.alt}
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   );
@@ -1630,10 +1782,109 @@ function InfoBadge({ label, value }) {
 }
 
 // ============================================
-// PasserModal - Motif du passage d'étape
+// PhotoUploadSection - Composant réutilisable d'upload photos
+// ============================================
+function PhotoUploadSection({ files, setFiles }) {
+  const handleFileChange = (e) => {
+    const newFiles = Array.from(e.target.files);
+    setFiles(prev => [...prev, ...newFiles].slice(0, 5));
+  };
+
+  const removeFile = (idx) => {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className="mb-4">
+      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
+        <Camera className="w-4 h-4" /> Photos (optionnel)
+      </label>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {files.map((file, idx) => (
+          <div key={idx} className="relative group">
+            <img
+              src={URL.createObjectURL(file)}
+              alt={file.name}
+              className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+            />
+            <button
+              type="button"
+              onClick={() => removeFile(idx)}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-sm"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        {files.length < 5 && (
+          <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+            <Camera className="w-5 h-5 text-gray-400" />
+            <span className="text-[10px] text-gray-400 mt-0.5">Ajouter</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </label>
+        )}
+      </div>
+      <p className="text-[10px] text-gray-400">{files.length}/5 photos · Max 5MB chacune</p>
+    </div>
+  );
+}
+
+// ============================================
+// ValiderModal - Valider une étape avec photos
+// ============================================
+function ValiderModal({ etapeNumero, onSubmit, onClose, loading }) {
+  const [comment, setComment] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const etape = ETAPES.find(e => e.numero === etapeNumero);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center gap-2 mb-4 text-green-600">
+          <Check className="w-6 h-6" />
+          <h3 className="font-bold text-lg">Valider l'étape</h3>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Étape {etapeNumero}: <strong>{etape?.nom}</strong>
+        </p>
+        <textarea
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-green-500"
+          rows={2}
+          placeholder="Commentaire (optionnel)..."
+          autoFocus
+        />
+        <PhotoUploadSection files={photos} setFiles={setPhotos} />
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+          <button
+            onClick={() => onSubmit(comment, photos)}
+            disabled={loading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {photos.length > 0 && <Camera className="w-4 h-4" />}
+            {loading ? 'Validation...' : 'Valider'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// PasserModal - Motif du passage d'étape avec photos
 // ============================================
 function PasserModal({ etapeNumero, onSubmit, onClose, loading }) {
   const [motif, setMotif] = useState('');
+  const [photos, setPhotos] = useState([]);
   const etape = ETAPES.find(e => e.numero === etapeNumero);
 
   return (
@@ -1655,10 +1906,11 @@ function PasserModal({ etapeNumero, onSubmit, onClose, loading }) {
           placeholder="Motif du passage (optionnel)..."
           autoFocus
         />
+        <PhotoUploadSection files={photos} setFiles={setPhotos} />
         <div className="flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
           <button
-            onClick={() => onSubmit(motif)}
+            onClick={() => onSubmit(motif, photos)}
             disabled={loading}
             className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
           >
@@ -1671,10 +1923,11 @@ function PasserModal({ etapeNumero, onSubmit, onClose, loading }) {
 }
 
 // ============================================
-// NCModal - Détailler la non-conformité
+// NCModal - Détailler la non-conformité avec photos
 // ============================================
 function NCModal({ etapeNumero, onSubmit, onClose, loading }) {
   const [comment, setComment] = useState('');
+  const [photos, setPhotos] = useState([]);
   const etape = ETAPES.find(e => e.numero === etapeNumero);
 
   return (
@@ -1696,13 +1949,15 @@ function NCModal({ etapeNumero, onSubmit, onClose, loading }) {
           placeholder="Décrivez la non-conformité..."
           required
         />
+        <PhotoUploadSection files={photos} setFiles={setPhotos} />
         <div className="flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
           <button
-            onClick={() => onSubmit(comment)}
+            onClick={() => onSubmit(comment, photos)}
             disabled={loading || !comment.trim()}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
           >
+            {photos.length > 0 && <Camera className="w-4 h-4" />}
             Confirmer NC
           </button>
         </div>

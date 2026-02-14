@@ -11,6 +11,7 @@ const fs = require('fs');
 const uploadsDir = path.join(__dirname, '../../uploads');
 const bobinesUploadsDir = path.join(uploadsDir, 'bobines');
 const projetUploadsDir = path.join(uploadsDir, 'projet');
+const tubesUploadsDir = path.join(uploadsDir, 'tubes');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -20,6 +21,9 @@ if (!fs.existsSync(bobinesUploadsDir)) {
 }
 if (!fs.existsSync(projetUploadsDir)) {
   fs.mkdirSync(projetUploadsDir, { recursive: true });
+}
+if (!fs.existsSync(tubesUploadsDir)) {
+  fs.mkdirSync(tubesUploadsDir, { recursive: true });
 }
 
 // Configuration du stockage pour les photos de bobines
@@ -57,9 +61,35 @@ const uploadBobinePhotos = multer({
   }
 });
 
+// Configuration du stockage pour les photos d'étapes de tubes
+const tubeEtapeStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, tubesUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const tubeId = req.params.id || 'temp';
+    const etapeNumero = req.params.etape || '0';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `tube_${tubeId}_etape_${etapeNumero}_${uniqueSuffix}${ext}`);
+  }
+});
+
+// Upload pour les photos d'étapes de tubes (max 5 photos, max 5MB chacune)
+const uploadTubeEtapePhotos = multer({
+  storage: tubeEtapeStorage,
+  fileFilter: imageFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 5
+  }
+});
+
 module.exports = {
   uploadBobinePhotos,
+  uploadTubeEtapePhotos,
   bobinesUploadsDir,
   projetUploadsDir,
+  tubesUploadsDir,
   uploadsDir
 };
