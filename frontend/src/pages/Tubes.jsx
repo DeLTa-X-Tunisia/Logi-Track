@@ -10,7 +10,7 @@ import {
   Play, Cylinder, Flame, Scissors, Scan, Droplet, ChevronDown,
   ChevronUp, ChevronRight, Package, Filter, SkipForward,
   AlertOctagon, RotateCcw, Ban, ShieldCheck, MessageSquare, Wifi, WifiOff,
-  Settings, Edit3, ToggleRight, ToggleLeft, Save
+  Settings, Edit3, ToggleRight, ToggleLeft, Save, Award, Wrench, Trophy
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
@@ -49,6 +49,13 @@ const ETAPE_STATUT_COLORS = {
   saute:         { bg: 'bg-amber-400',  ring: 'ring-amber-300',  text: 'text-white' },
 };
 
+const DECISION_INFO = {
+  en_attente:            { label: 'En attente',           badge: '⏳', bg: 'bg-gray-100',   text: 'text-gray-600',   border: 'border-gray-300' },
+  certifie_api:          { label: 'Certifié API',         badge: '🏆', bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300' },
+  certifie_hydraulique:  { label: 'Certifié Hydraulique', badge: '🔧', bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-300' },
+  declasse:              { label: 'Déclassé',             badge: '⚠️', bg: 'bg-orange-100',  text: 'text-orange-700', border: 'border-orange-300' },
+};
+
 const DIAMETRES = [
   { pouce: '8"',  mm: 219.1  }, { pouce: '10"', mm: 273.1  }, { pouce: '12"', mm: 323.9  },
   { pouce: '14"', mm: 355.6  }, { pouce: '16"', mm: 406.4  }, { pouce: '18"', mm: 457.2  },
@@ -77,6 +84,7 @@ export default function Tubes() {
   const [search, setSearch] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
   const [filterEtape, setFilterEtape] = useState('');
+  const [filterDecision, setFilterDecision] = useState('');
   const [filterCoulee, setFilterCoulee] = useState(searchParams.get('coulee_id') || '');
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedTube, setSelectedTube] = useState(null);
@@ -109,11 +117,12 @@ export default function Tubes() {
       if (filterStatut) params.append('statut', filterStatut);
       if (filterEtape) params.append('etape', filterEtape);
       if (filterCoulee) params.append('coulee_id', filterCoulee);
+      if (filterDecision) params.append('decision', filterDecision);
 
       const response = await api.get(`/tubes?${params}`);
       setTubes(response.data);
     } catch (e) { console.error(e); }
-  }, [search, filterStatut, filterEtape, filterCoulee]);
+  }, [search, filterStatut, filterEtape, filterCoulee, filterDecision]);
 
   const fetchStats = async () => {
     try {
@@ -194,6 +203,14 @@ export default function Tubes() {
         <StatCard label="Rebuts" value={stats.rebuts || 0} color="bg-gray-500" icon={Ban} />
       </div>
 
+      {/* Stats Décisions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="⏳ Décision en attente" value={stats.decision_en_attente || 0} color="bg-amber-500" icon={Clock} />
+        <StatCard label="🏆 Certifié API" value={stats.certifie_api || 0} color="bg-emerald-500" icon={Trophy} />
+        <StatCard label="🔧 Certifié Hydraulique" value={stats.certifie_hydraulique || 0} color="bg-blue-500" icon={Wrench} />
+        <StatCard label="⚠️ Déclassé" value={stats.declasse || 0} color="bg-orange-500" icon={AlertTriangle} />
+      </div>
+
       {/* Filtres */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row gap-3">
@@ -227,6 +244,17 @@ export default function Tubes() {
             {ETAPES.map(e => (
               <option key={e.numero} value={e.numero}>{e.numero}. {e.nom}</option>
             ))}
+          </select>
+          <select
+            value={filterDecision}
+            onChange={e => setFilterDecision(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">Toutes décisions</option>
+            <option value="en_attente">⏳ En attente</option>
+            <option value="certifie_api">🏆 Certifié API</option>
+            <option value="certifie_hydraulique">🔧 Certifié Hydraulique</option>
+            <option value="declasse">⚠️ Déclassé</option>
           </select>
         </div>
       </div>
@@ -333,6 +361,16 @@ function TubeCard({ tube, onClick, onDelete }) {
                 </span>
                 {hasNC && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">NC</span>}
                 {hasSaute && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-1"><WifiOff className="w-3 h-3" />Offline</span>}
+                {tube.statut === 'termine' && tube.decision && tube.decision !== 'en_attente' && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${DECISION_INFO[tube.decision]?.bg} ${DECISION_INFO[tube.decision]?.text}`}>
+                    {DECISION_INFO[tube.decision]?.badge} {DECISION_INFO[tube.decision]?.label}
+                  </span>
+                )}
+                {tube.statut === 'termine' && (!tube.decision || tube.decision === 'en_attente') && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                    ⏳ Décision
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-500">
                 Coulée {tube.coulee_numero}{tube.coulee_numero_2 ? ` → ${tube.coulee_numero_2}` : ''} · ⌀{tube.diametre_mm}mm {tube.diametre_pouce ? `(${tube.diametre_pouce})` : ''}
@@ -1265,13 +1303,9 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
             })}
           </div>
 
-          {/* Tube terminé */}
+          {/* Tube terminé — Panneau Décision Finale */}
           {tube.statut === 'termine' && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-              <Check className="w-10 h-10 text-green-500 mx-auto mb-2" />
-              <h3 className="font-bold text-green-700">Production terminée</h3>
-              <p className="text-sm text-green-600">Toutes les étapes ont été validées</p>
-            </div>
+            <DecisionPanel tube={tube} onUpdate={onUpdate} />
           )}
         </div>
       </div>
@@ -1304,6 +1338,203 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
           onClose={() => setShowResolveModal(null)}
           loading={loading}
         />
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// DecisionPanel - Décision finale après production
+// ============================================
+function DecisionPanel({ tube, onUpdate }) {
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [selectedDecision, setSelectedDecision] = useState('');
+  const [commentaire, setCommentaire] = useState('');
+  const [panelOpened, setPanelOpened] = useState(false);
+
+  const decisionInfo = DECISION_INFO[tube.decision] || DECISION_INFO.en_attente;
+  const isDecided = tube.decision && tube.decision !== 'en_attente';
+
+  // Marquer début de décision quand on ouvre le panneau
+  const openDecisionPanel = async () => {
+    setPanelOpened(true);
+    try {
+      await api.put(`/tubes/${tube.id}/debut-decision`);
+    } catch (err) {
+      console.error('Erreur début décision:', err);
+    }
+  };
+
+  // Valider la décision
+  const validerDecision = async () => {
+    if (!selectedDecision) return;
+    setLoading(true);
+    try {
+      const response = await api.put(`/tubes/${tube.id}/decision`, {
+        decision: selectedDecision,
+        commentaire: commentaire || null
+      });
+      onUpdate(response.data);
+      const label = DECISION_INFO[selectedDecision]?.label || selectedDecision;
+      showToast(`Décision enregistrée : ${label}`, 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Erreur décision', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const decisions = [
+    { 
+      value: 'certifie_api', label: 'Certifié API', 
+      desc: 'Conforme aux normes API 5L',
+      icon: Trophy, color: 'emerald',
+      btnClass: 'border-emerald-500 bg-emerald-50 hover:bg-emerald-100',
+      selectedClass: 'border-emerald-500 bg-emerald-100 ring-2 ring-emerald-300',
+      iconColor: 'text-emerald-600'
+    },
+    { 
+      value: 'certifie_hydraulique', label: 'Certifié Hydraulique', 
+      desc: 'Usage hydraulique uniquement',
+      icon: Wrench, color: 'blue',
+      btnClass: 'border-blue-500 bg-blue-50 hover:bg-blue-100',
+      selectedClass: 'border-blue-500 bg-blue-100 ring-2 ring-blue-300',
+      iconColor: 'text-blue-600'
+    },
+    { 
+      value: 'declasse', label: 'Déclassé', 
+      desc: 'Ne répond pas aux critères de certification',
+      icon: AlertTriangle, color: 'orange',
+      btnClass: 'border-orange-500 bg-orange-50 hover:bg-orange-100',
+      selectedClass: 'border-orange-500 bg-orange-100 ring-2 ring-orange-300',
+      iconColor: 'text-orange-600'
+    },
+  ];
+
+  // Décision déjà prise — affichage résumé
+  if (isDecided) {
+    return (
+      <div className={`mt-4 ${decisionInfo.bg} border ${decisionInfo.border} rounded-lg p-4`}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">{decisionInfo.badge}</span>
+          <div>
+            <h3 className={`font-bold ${decisionInfo.text}`}>Décision : {decisionInfo.label}</h3>
+            <p className="text-sm text-gray-600">
+              Par {tube.decision_par || '—'} le {tube.decision_date ? new Date(tube.decision_date).toLocaleString('fr-FR') : '—'}
+            </p>
+          </div>
+        </div>
+        {tube.decision_commentaire && (
+          <p className="text-sm text-gray-600 italic mt-1 flex items-start gap-1">
+            <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            {tube.decision_commentaire}
+          </p>
+        )}
+        {/* Timestamps traçabilité */}
+        <div className="mt-3 pt-3 border-t border-gray-200/60 grid grid-cols-3 gap-2 text-xs text-gray-500">
+          <div>
+            <span className="block font-medium text-gray-600">Fin production</span>
+            {tube.date_fin_production ? new Date(tube.date_fin_production).toLocaleString('fr-FR') : '—'}
+          </div>
+          <div>
+            <span className="block font-medium text-gray-600">Début décision</span>
+            {tube.date_debut_decision ? new Date(tube.date_debut_decision).toLocaleString('fr-FR') : '—'}
+          </div>
+          <div>
+            <span className="block font-medium text-gray-600">Fin décision</span>
+            {tube.date_fin_decision ? new Date(tube.date_fin_decision).toLocaleString('fr-FR') : '—'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pas encore décidé — panneau interactif
+  return (
+    <div className="mt-4 border border-green-200 rounded-lg overflow-hidden">
+      {/* Header */}
+      <div className="bg-green-50 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Check className="w-5 h-5 text-green-600" />
+          <h3 className="font-bold text-green-700">Production terminée</h3>
+        </div>
+        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+          ⏳ Décision en attente
+        </span>
+      </div>
+
+      {/* Timestamps */}
+      {tube.date_fin_production && (
+        <div className="px-4 py-2 bg-green-50/50 border-b border-green-100 text-xs text-gray-500">
+          Production terminée le {new Date(tube.date_fin_production).toLocaleString('fr-FR')}
+        </div>
+      )}
+
+      {!panelOpened ? (
+        <div className="p-4 text-center">
+          <p className="text-sm text-gray-600 mb-3">Toutes les 12 étapes ont été validées. Prendre la décision finale ?</p>
+          <button
+            onClick={openDecisionPanel}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 mx-auto"
+          >
+            <Award className="w-4 h-4" /> Ouvrir le panneau de décision
+          </button>
+        </div>
+      ) : (
+        <div className="p-4">
+          <p className="text-sm text-gray-600 mb-3 font-medium">Choisir la décision finale :</p>
+          
+          {/* 3 choix */}
+          <div className="space-y-2 mb-4">
+            {decisions.map(d => {
+              const Icon = d.icon;
+              const isSelected = selectedDecision === d.value;
+              return (
+                <button
+                  key={d.value}
+                  onClick={() => setSelectedDecision(d.value)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${
+                    isSelected ? d.selectedClass : `border-gray-200 hover:${d.btnClass}`
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 ${isSelected ? d.iconColor : 'text-gray-400'}`} />
+                  <div>
+                    <p className={`font-medium text-sm ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>{d.label}</p>
+                    <p className="text-xs text-gray-400">{d.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Commentaire */}
+          <textarea
+            value={commentaire}
+            onChange={e => setCommentaire(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            rows={2}
+            placeholder="Commentaire de décision (optionnel)..."
+          />
+
+          {/* Valider */}
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setPanelOpened(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={validerDecision}
+              disabled={loading || !selectedDecision}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center gap-2 text-sm"
+            >
+              <Award className="w-4 h-4" />
+              {loading ? 'Enregistrement...' : 'Valider la décision'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

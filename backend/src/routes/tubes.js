@@ -64,7 +64,11 @@ router.get('/stats', async (req, res) => {
         SUM(CASE WHEN statut = 'en_production' THEN 1 ELSE 0 END) as en_production,
         SUM(CASE WHEN statut = 'termine' THEN 1 ELSE 0 END) as termines,
         SUM(CASE WHEN statut = 'en_attente' THEN 1 ELSE 0 END) as en_attente,
-        SUM(CASE WHEN statut = 'rebut' THEN 1 ELSE 0 END) as rebuts
+        SUM(CASE WHEN statut = 'rebut' THEN 1 ELSE 0 END) as rebuts,
+        SUM(CASE WHEN statut = 'termine' AND decision = 'en_attente' THEN 1 ELSE 0 END) as decision_en_attente,
+        SUM(CASE WHEN decision = 'certifie_api' THEN 1 ELSE 0 END) as certifie_api,
+        SUM(CASE WHEN decision = 'certifie_hydraulique' THEN 1 ELSE 0 END) as certifie_hydraulique,
+        SUM(CASE WHEN decision = 'declasse' THEN 1 ELSE 0 END) as declasse
       FROM tubes
     `);
     
@@ -99,7 +103,7 @@ router.get('/prochain-numero', async (req, res) => {
 // ============================================
 router.get('/', async (req, res) => {
   try {
-    const { statut, etape, coulee_id, search } = req.query;
+    const { statut, etape, coulee_id, search, decision } = req.query;
     let query = `
       SELECT t.*, c.numero as coulee_numero, c2.numero as coulee_numero_2,
              b.numero as bobine_numero, b.epaisseur as bobine_epaisseur,
@@ -116,6 +120,7 @@ router.get('/', async (req, res) => {
     if (statut) { query += ' AND t.statut = ?'; params.push(statut); }
     if (etape) { query += ' AND t.etape_courante = ?'; params.push(parseInt(etape)); }
     if (coulee_id) { query += ' AND t.coulee_id = ?'; params.push(parseInt(coulee_id)); }
+    if (decision) { query += ' AND t.decision = ?'; params.push(decision); }
     if (search) { query += ' AND (t.numero LIKE ? OR c.numero LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     
     query += ' ORDER BY t.created_at DESC';
@@ -382,7 +387,7 @@ router.put('/:id/valider-etape', async (req, res) => {
         "SELECT COUNT(*) as cnt FROM tube_etapes WHERE tube_id = ? AND statut NOT IN ('valide','saute')", [id]
       );
       if (remaining[0].cnt === 0) {
-        await pool.query("UPDATE tubes SET statut = 'termine', etape_courante = 12 WHERE id = ?", [id]);
+        await pool.query("UPDATE tubes SET statut = 'termine', etape_courante = 12, date_fin_production = NOW() WHERE id = ?", [id]);
       }
     }
 
@@ -468,7 +473,7 @@ router.put('/:id/resoudre-nc', async (req, res) => {
         `, [id, nextEtape]);
         await pool.query("UPDATE tubes SET statut = 'en_production', etape_courante = ? WHERE id = ?", [nextEtape, id]);
       } else {
-        await pool.query("UPDATE tubes SET statut = 'termine', etape_courante = 12 WHERE id = ?", [id]);
+        await pool.query("UPDATE tubes SET statut = 'termine', etape_courante = 12, date_fin_production = NOW() WHERE id = ?", [id]);
       }
     }
 
@@ -553,7 +558,7 @@ router.put('/:id/valider-offline', async (req, res) => {
       "SELECT COUNT(*) as cnt FROM tube_etapes WHERE tube_id = ? AND statut NOT IN ('valide','saute')", [id]
     );
     if (remaining[0].cnt === 0) {
-      await pool.query("UPDATE tubes SET statut = 'termine' WHERE id = ?", [id]);
+      await pool.query("UPDATE tubes SET statut = 'termine', date_fin_production = NOW() WHERE id = ?", [id]);
     }
 
     const [updatedTube] = await pool.query('SELECT * FROM tubes WHERE id = ?', [id]);
@@ -565,6 +570,66 @@ router.put('/:id/valider-offline', async (req, res) => {
   } catch (error) {
     console.error('Erreur valider-offline:', error);
     res.status(500).json({ error: 'Erreur validation offline' });
+  }
+});
+
+// ============================================
+// PUT /api/tubes/:id/debut-decision - Marquer début de décision
+// ============================================
+router.put('/:id/debut-decision', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [tube] = await pool.query('SELECT * FROM tubes WHERE id = ?', [id]);
+    if (tube.length === 0) return res.status(404).json({ error: 'Tube non trouvé' });
+    if (tube[0].statut !== 'termine') return res.status(400).json({ error: 'Le tube doit être terminé pour ouvrir la décision' });
+
+    // Ne marquer que si pas déjà marqué
+    if (!tube[0].date_debut_decision) {
+      await pool.query('UPDATE tubes SET date_debut_decision = NOW() WHERE id = ?', [id]);
+    }
+
+    const [updatedTube] = await pool.query('SELECT * FROM tubes WHERE id = ?', [id]);
+    res.json(updatedTube[0]);
+  } catch (error) {
+    console.error('Erreur debut-decision:', error);
+    res.status(500).json({ error: 'Erreur début décision' });
+  }
+});
+
+// ============================================
+// PUT /api/tubes/:id/decision - Enregistrer la décision finale
+// ============================================
+router.put('/:id/decision', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { decision, commentaire } = req.body;
+    const decision_par = req.user ? `${req.user.prenom || ''} ${req.user.nom || ''}`.trim() : 'Système';
+
+    const validDecisions = ['certifie_api', 'certifie_hydraulique', 'declasse'];
+    if (!validDecisions.includes(decision)) {
+      return res.status(400).json({ error: 'Décision invalide. Valeurs acceptées: certifie_api, certifie_hydraulique, declasse' });
+    }
+
+    const [tube] = await pool.query('SELECT * FROM tubes WHERE id = ?', [id]);
+    if (tube.length === 0) return res.status(404).json({ error: 'Tube non trouvé' });
+    if (tube[0].statut !== 'termine') return res.status(400).json({ error: 'Le tube doit être terminé pour prendre une décision' });
+
+    await pool.query(`
+      UPDATE tubes SET 
+        decision = ?, decision_date = NOW(), decision_par = ?,
+        decision_commentaire = ?, date_fin_decision = NOW()
+      WHERE id = ?
+    `, [decision, decision_par, commentaire || null, id]);
+
+    const [updatedTube] = await pool.query('SELECT * FROM tubes WHERE id = ?', [id]);
+    const [etapes] = await pool.query(
+      'SELECT * FROM tube_etapes WHERE tube_id = ? ORDER BY etape_numero', [id]
+    );
+    updatedTube[0].etapes = etapes;
+    res.json(updatedTube[0]);
+  } catch (error) {
+    console.error('Erreur decision:', error);
+    res.status(500).json({ error: 'Erreur enregistrement décision' });
   }
 });
 
