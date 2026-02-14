@@ -987,6 +987,34 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
           </button>
         </div>
 
+        {/* Résumé Temps & Retards */}
+        {coulee.created_at && (
+          <div className="px-6 py-3 border-b bg-gray-50 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+            <div className="flex items-center gap-1.5 text-gray-600">
+              <Clock className="w-4 h-4 text-gray-400" />
+              <span>Démarrée le {new Date(coulee.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            {(coulee.retard_reception_minutes > 0) && (
+              <div className={`flex items-center gap-1.5 font-medium ${getDelayStyle(coulee.retard_reception_minutes).color}`}>
+                <Truck className="w-4 h-4" />
+                <span>Réception : {formatDelay(coulee.retard_reception_minutes)}</span>
+              </div>
+            )}
+            {(coulee.retard_installation_minutes > 0) && (
+              <div className={`flex items-center gap-1.5 font-medium ${getDelayStyle(coulee.retard_installation_minutes).color}`}>
+                <Wrench className="w-4 h-4" />
+                <span>Installation : {formatDelay(coulee.retard_installation_minutes)}</span>
+              </div>
+            )}
+            {((coulee.retard_reception_minutes || 0) + (coulee.retard_installation_minutes || 0)) > 0 && (coulee.retard_reception_minutes > 0 && coulee.retard_installation_minutes > 0) && (
+              <div className={`flex items-center gap-1.5 font-bold ${getDelayStyle((coulee.retard_reception_minutes || 0) + (coulee.retard_installation_minutes || 0)).color}`}>
+                <AlertTriangle className="w-4 h-4" />
+                <span>Total : {formatDelay((coulee.retard_reception_minutes || 0) + (coulee.retard_installation_minutes || 0))}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Workflow Steps */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           
