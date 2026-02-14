@@ -59,9 +59,15 @@ export default function Layout({ children }) {
   const userMenuRef = useRef(null);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showManualInstall, setShowManualInstall] = useState(false);
   const [isStandalone, setIsStandalone] = useState(
     window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
   );
+
+  // Detect mobile browser
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isChrome = /Chrome/i.test(navigator.userAgent) && !/Edge|OPR/i.test(navigator.userAgent);
+  const isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
 
   // PWA install prompt
   useEffect(() => {
@@ -75,11 +81,28 @@ export default function Layout({ children }) {
     // Detect if app was installed
     window.addEventListener('appinstalled', () => {
       setShowInstallBanner(false);
+      setShowManualInstall(false);
       setInstallPrompt(null);
       setIsStandalone(true);
     });
+
+    // If on mobile and no prompt after 3s, show manual install guide
+    let manualTimer;
+    if (isMobile && !isStandalone) {
+      manualTimer = setTimeout(() => {
+        if (!installPrompt) {
+          const dismissed = localStorage.getItem('logitrack_install_dismissed');
+          if (!dismissed) {
+            setShowManualInstall(true);
+          }
+        }
+      }, 3000);
+    }
     
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      if (manualTimer) clearTimeout(manualTimer);
+    };
   }, []);
 
   const handleInstall = async () => {
@@ -90,6 +113,11 @@ export default function Layout({ children }) {
       setShowInstallBanner(false);
       setInstallPrompt(null);
     }
+  };
+
+  const dismissManualInstall = () => {
+    setShowManualInstall(false);
+    localStorage.setItem('logitrack_install_dismissed', 'true');
   };
 
   // Charger les paramètres du projet
@@ -125,7 +153,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* PWA Install Banner */}
+      {/* PWA Install Banner - automatic */}
       {showInstallBanner && !isStandalone && (
         <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-6 md:bottom-6 md:w-96 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl shadow-2xl p-4 animate-fadeIn">
           <div className="flex items-center gap-3">
@@ -150,6 +178,43 @@ export default function Layout({ children }) {
                 Installer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PWA Manual Install Guide - shown when beforeinstallprompt doesn't fire */}
+      {showManualInstall && !isStandalone && !showInstallBanner && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-6 md:bottom-6 md:w-96 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-2xl shadow-2xl p-4 animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Download className="w-5 h-5 text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm mb-2">Installer Logi-Track</p>
+              {isChrome && (
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p>1. Appuyez sur <span className="inline-flex items-center font-bold text-white">⋮</span> (menu en haut à droite)</p>
+                  <p>2. Sélectionnez <span className="font-semibold text-blue-300">"Ajouter à l'écran d'accueil"</span></p>
+                  <p>3. Confirmez en appuyant <span className="font-semibold text-blue-300">"Ajouter"</span></p>
+                </div>
+              )}
+              {isSamsung && (
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p>1. Appuyez sur <span className="inline-flex items-center font-bold text-white">≡</span> (menu en bas)</p>
+                  <p>2. Sélectionnez <span className="font-semibold text-blue-300">"Ajouter page à"</span></p>
+                  <p>3. Choisissez <span className="font-semibold text-blue-300">"Écran d'accueil"</span></p>
+                </div>
+              )}
+              {!isChrome && !isSamsung && (
+                <p className="text-xs text-slate-300">Utilisez le menu de votre navigateur pour "Ajouter à l'écran d'accueil"</p>
+              )}
+            </div>
+            <button
+              onClick={dismissManualInstall}
+              className="text-slate-400 hover:text-white flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
