@@ -26,6 +26,7 @@ const { authenticateToken } = require('./middleware/auth');
 
 const path = require('path');
 const PORT = parseInt(process.env.PORT || '3002', 10);
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '3443', 10);
 
 const app = express();
 
@@ -33,23 +34,20 @@ const app = express();
 const sslDir = path.join(__dirname, '..', 'ssl');
 const hasSSL = fs.existsSync(path.join(sslDir, 'server.key')) && fs.existsSync(path.join(sslDir, 'server.crt'));
 
-let server;
+// HTTP principal (port 3002) — fonctionne comme avant
+const server = http.createServer(app);
+
+// HTTPS additionnel (port 3443) — pour PWA Android
+let httpsServer;
 if (hasSSL) {
   const sslOptions = {
     key: fs.readFileSync(path.join(sslDir, 'server.key')),
     cert: fs.readFileSync(path.join(sslDir, 'server.crt'))
   };
-  server = https.createServer(sslOptions, app);
-  // Aussi écouter en HTTP pour rediriger vers HTTPS
-  const httpRedirect = express();
-  httpRedirect.all('*', (req, res) => {
-    res.redirect(`https://${req.hostname}:${PORT}${req.url}`);
+  httpsServer = https.createServer(sslOptions, app);
+  httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+    console.log(`🔒 HTTPS disponible sur :${HTTPS_PORT}`);
   });
-  http.createServer(httpRedirect).listen(PORT + 1, '0.0.0.0', () => {
-    console.log(`🔄 HTTP redirect :${PORT + 1} → HTTPS :${PORT}`);
-  });
-} else {
-  server = http.createServer(app);
 }
 
 // Configuration Socket.io pour notifications temps réel (préparation future)
@@ -165,7 +163,6 @@ app.use((err, req, res, next) => {
 
 // Démarrage du serveur avec Socket.io
 server.listen(PORT, '0.0.0.0', () => {
-  const proto = hasSSL ? 'https' : 'http';
   const os = require('os');
   const nets = os.networkInterfaces();
   const localIP = Object.values(nets).flat().find(i => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
@@ -178,12 +175,10 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('║   Suivi de production et certification API 5L                 ║');
   console.log('║   des tubes spirale                                           ║');
   console.log('║                                                               ║');
-  console.log(`║   🚀 ${proto}://localhost:${PORT}                              ║`);
+  console.log(`║   🚀 http://localhost:${PORT}                                  ║`);
   if (hasSSL) {
-    console.log(`║   🔒 HTTPS activé (SSL)                                       ║`);
-    console.log(`║   📱 Android/Mobile: ${proto}://${localIP}:${PORT}             ║`);
-  } else {
-    console.log(`║   ⚠️  HTTP mode (pas de SSL)                                  ║`);
+    console.log(`║   🔒 https://localhost:${HTTPS_PORT}  (HTTPS/SSL)               ║`);
+    console.log(`║   📱 Android: https://${localIP}:${HTTPS_PORT}             ║`);
   }
   console.log('║   🔌 Socket.io activé pour notifications temps réel           ║');
   if (fs.existsSync(frontendDist)) {

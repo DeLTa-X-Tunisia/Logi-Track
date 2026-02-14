@@ -1,8 +1,7 @@
 import axios from 'axios';
 
-// Utiliser l'hostname actuel du navigateur pour supporter l'accès réseau
-// Auto-détection du protocole (HTTP/HTTPS) pour le support PWA Android
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3002/api`;
+// URL relative : fonctionne avec Vite proxy (dev) et Express (prod)
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
