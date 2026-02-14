@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const { Server } = require('socket.io');
 
 // Import des routes
@@ -22,8 +24,33 @@ const fournisseursRoutes = require('./routes/fournisseurs');
 // Import du middleware d'authentification
 const { authenticateToken } = require('./middleware/auth');
 
+const path = require('path');
+const PORT = parseInt(process.env.PORT || '3002', 10);
+
 const app = express();
-const server = http.createServer(app);
+
+// HTTPS: charger les certificats SSL s'ils existent
+const sslDir = path.join(__dirname, '..', 'ssl');
+const hasSSL = fs.existsSync(path.join(sslDir, 'server.key')) && fs.existsSync(path.join(sslDir, 'server.crt'));
+
+let server;
+if (hasSSL) {
+  const sslOptions = {
+    key: fs.readFileSync(path.join(sslDir, 'server.key')),
+    cert: fs.readFileSync(path.join(sslDir, 'server.crt'))
+  };
+  server = https.createServer(sslOptions, app);
+  // Aussi écouter en HTTP pour rediriger vers HTTPS
+  const httpRedirect = express();
+  httpRedirect.all('*', (req, res) => {
+    res.redirect(`https://${req.hostname}:${PORT}${req.url}`);
+  });
+  http.createServer(httpRedirect).listen(PORT + 1, '0.0.0.0', () => {
+    console.log(`🔄 HTTP redirect :${PORT + 1} → HTTPS :${PORT}`);
+  });
+} else {
+  server = http.createServer(app);
+}
 
 // Configuration Socket.io pour notifications temps réel (préparation future)
 const io = new Server(server, {
@@ -32,9 +59,6 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
-
-const PORT = process.env.PORT || 3002;
-const path = require('path');
 
 // Middlewares
 app.use(cors());
@@ -111,10 +135,24 @@ io.on('connection', (socket) => {
   });
 });
 
-// Gestion des erreurs 404
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route non trouvée' });
-});
+// Servir le frontend (build) en production
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  // Pour le routing SPA (React Router), renvoyer index.html 
+  app.get('*', (req, res) => {
+    // Ne pas intercepter les routes API
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+      return res.status(404).json({ error: 'Route non trouvée' });
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+} else {
+  // Gestion des erreurs 404 (mode dev sans frontend build)
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Route non trouvée' });
+  });
+}
 
 // Gestion des erreurs globales
 app.use((err, req, res, next) => {
@@ -127,6 +165,11 @@ app.use((err, req, res, next) => {
 
 // Démarrage du serveur avec Socket.io
 server.listen(PORT, '0.0.0.0', () => {
+  const proto = hasSSL ? 'https' : 'http';
+  const os = require('os');
+  const nets = os.networkInterfaces();
+  const localIP = Object.values(nets).flat().find(i => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
+  
   console.log('');
   console.log('╔═══════════════════════════════════════════════════════════════╗');
   console.log('║                                                               ║');
@@ -135,8 +178,17 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('║   Suivi de production et certification API 5L                 ║');
   console.log('║   des tubes spirale                                           ║');
   console.log('║                                                               ║');
-  console.log(`║   🚀 Serveur démarré sur http://localhost:${PORT}              ║`);
+  console.log(`║   🚀 ${proto}://localhost:${PORT}                              ║`);
+  if (hasSSL) {
+    console.log(`║   🔒 HTTPS activé (SSL)                                       ║`);
+    console.log(`║   📱 Android/Mobile: ${proto}://${localIP}:${PORT}             ║`);
+  } else {
+    console.log(`║   ⚠️  HTTP mode (pas de SSL)                                  ║`);
+  }
   console.log('║   🔌 Socket.io activé pour notifications temps réel           ║');
+  if (fs.existsSync(frontendDist)) {
+    console.log('║   📦 Frontend servi depuis /frontend/dist                     ║');
+  }
   console.log('║                                                               ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log('');

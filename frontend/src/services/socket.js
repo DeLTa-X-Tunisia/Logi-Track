@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
 // Utiliser l'hostname actuel du navigateur pour supporter l'accès réseau
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || `http://${window.location.hostname}:3002`;
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || `${window.location.protocol}//${window.location.hostname}:3002`;
 
 class SocketService {
   constructor() {

@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // Utiliser l'hostname actuel du navigateur pour supporter l'accès réseau
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3002/api`;
+// Auto-détection du protocole (HTTP/HTTPS) pour le support PWA Android
+const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3002/api`;
 
 const api = axios.create({
   baseURL: API_URL,

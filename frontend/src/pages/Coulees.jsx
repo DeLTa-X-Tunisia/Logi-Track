@@ -159,7 +159,7 @@ export default function Coulees() {
   const downloadCouleePdf = async (couleeId, numero) => {
     try {
       const token = localStorage.getItem('logitrack_token');
-      const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3002/api`;
+      const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3002/api`;
       const response = await fetch(`${API_URL}/coulees/${couleeId}/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });

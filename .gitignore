@@ -71,3 +71,6 @@ LogiTrack-Launcher/bin/
 LogiTrack-Launcher/obj/
 LogiTrack-Launcher/publish/
 *.user
+
+# SSL certificates (auto-generated, sensitive)
+backend/ssl/

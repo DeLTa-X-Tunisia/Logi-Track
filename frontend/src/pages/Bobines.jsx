@@ -6,7 +6,7 @@ import { useTranslation } from '../context/I18nContext';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
 
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3002`;
+const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3002`;
 
 export default function Bobines() {
   const { user } = useAuth();
