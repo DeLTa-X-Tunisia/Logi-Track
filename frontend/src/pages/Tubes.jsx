@@ -387,6 +387,26 @@ function TubeCard({ tube, onClick, onDelete }) {
               </span>
             )}
             <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const res = await api.get(`/tubes/${tube.id}/pdf`, { responseType: 'blob' });
+                  const url = window.URL.createObjectURL(new Blob([res.data]));
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `tube_${tube.numero}.pdf`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error('Erreur PDF:', err);
+                }
+              }}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Télécharger rapport PDF"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
             >
