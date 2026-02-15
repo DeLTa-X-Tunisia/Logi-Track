@@ -197,7 +197,7 @@ app.get('/api/discover', (req, res) => {
   const localIP = Object.values(nets).flat().find(i => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
   res.json({ 
     service: 'LogiTrack', 
-    version: '2.0.0', 
+    version: '2.1.0', 
     ip: localIP, 
     port: PORT,
     httpsPort: hasSSL ? HTTPS_PORT : null 
@@ -276,7 +276,7 @@ function publishMdns() {
     type: 'logitrack',
     protocol: 'tcp',
     port: PORT,
-    txt: { version: '2.0.0', path: '/' }
+    txt: { version: '2.1.0', path: '/' }
   });
   console.log('📡 mDNS: service _logitrack._tcp publié sur le réseau local');
 }

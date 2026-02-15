@@ -7,6 +7,46 @@ et ce projet adhère au [Versionnage Sémantique](https://semver.org/lang/fr/).
 
 ---
 
+## [2.1.0] — 15 Février 2026
+
+### Ajouté
+- **Audit trail** : journal complet des actions (login, CRUD, validation, décision finale) avec table `audit_trail` et route `GET /api/audit`
+- **Health check** : route `GET /api/health` retournant version, statut DB, uptime au format JSON
+- **ErrorBoundary** : composant React de capture d'erreurs avec UI de récupération
+- **Checklist Périodique** : nouveau type de checklist avec récurrence configurable et suivi de validité
+- **ChecklistAlert** : composant d'alerte pour les checklists expirées/à venir
+- **Application Android** : WebView Java avec découverte mDNS (NsdManager) et APK téléchargeable
+
+### Amélioré
+- **Launcher v2.1.0** : refonte complète du Launcher Desktop
+  - 3 cartes de services (MySQL + Backend + Frontend) au lieu de 2
+  - Détection automatique de MySQL (processus + test connexion)
+  - Vérification pré-vol MySQL avant démarrage du backend
+  - Health check enrichi : parsing JSON (version, statut DB, uptime)
+  - Header temps réel avec version serveur, statut DB et uptime
+  - Bouton « Dossier Projet » pour ouvrir l'Explorateur
+  - Minimisation en System Tray avec menu contextuel
+  - Notifications ballon quand les services sont prêts
+  - Dialogue de fermeture intelligent (Arrêter / Minimiser / Annuler)
+  - Barre de statut avec compteur 3 services
+  - Infos supplémentaires par carte (version, statut DB, URL, erreurs)
+- **Dashboard** : requêtes parallélisées avec `Promise.all` (7 requêtes simultanées)
+- **Code splitting** : 14 pages chargées en lazy loading via `React.lazy` + `Suspense` (13 chunks)
+
+### Sécurité
+- **Helmet** : headers HTTP sécurisés (CSP, HSTS, X-Frame-Options, etc.)
+- **Rate limiting** : protection contre les abus — 20 requêtes auth/15min, 300 API/15min
+- **CORS restrictif** : origines configurables via `CORS_ORIGINS` (env variable)
+- **Uploads protégés** : authentification JWT requise pour accéder aux fichiers uploadés
+- **JWT encapsulé** : secret non exporté, fonction `signToken()` centralisée dans le middleware
+
+### Performance
+- **Fix N+1** : requêtes batch `WHERE IN()` pour tubes, paramètres soudage, checklists périodiques
+- **Pagination** : support `?page=&limit=` sur les routes liste avec metadata (total, totalPages, currentPage)
+- **13 index DB** : index sur les colonnes critiques (FK, statut, recherche, tri)
+
+---
+
 ## [2.0.0] — 14 Février 2026
 
 ### Ajouté

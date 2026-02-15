@@ -1,4 +1,4 @@
-# LogiTrack
+# LogiTrack v2.1.0
 
 **ERP de suivi de production et certification API 5L des tubes spirale**
 
@@ -48,11 +48,26 @@ LogiTrack est une application web ERP complète de gestion de production pour le
 ### Contrôle Qualité
 - **Checklists** : début de quart, hebdomadaire, mensuelle
 - **Checklist Machine** : vérification de l'état des machines
+- **Checklist Périodique** : récurrence configurable avec suivi de validité
 - **Photos d'étapes** : prise de photos à chaque étape avec stockage serveur
 
 ### Dashboard & Analytics
-- **Dashboard** : vue d'ensemble de la production (tubes en cours, terminés, statistiques)
+- **Dashboard** : vue d'ensemble de la production (tubes en cours, terminés, statistiques) — requêtes parallélisées
 - **Analyse des temps** : temps passé par étape, délais inter-étapes, identification des goulots d'étranglement
+- **Audit trail** : journal complet des actions (login, création, validation, décision)
+
+### Sécurité & Performance (v2.1.0)
+- **Helmet** : headers HTTP sécurisés
+- **Rate limiting** : protection contre les abus (20 auth/15min, 300 API/15min)
+- **CORS restrictif** : origines configurables via variable d'environnement
+- **Uploads protégés** : authentification requise pour accéder aux fichiers
+- **JWT encapsulé** : secret non exporté, `signToken()` centralisé
+- **13 index DB** : performances optimisées sur les requêtes critiques
+- **Fix N+1** : requêtes batch `IN()` (tubes, paramètres, checklists périodiques)
+- **Pagination API** : support `?page=&limit=` avec metadata
+- **Health check** : vérifie la DB, retourne version/uptime/status
+- **Code splitting** : React.lazy + Suspense (13 chunks séparés)
+- **Error Boundary** : capture des crashs composants avec UI de récupération
 
 ### Gestion des Utilisateurs
 - **Admin** : accès complet avec gestion des comptes
@@ -67,6 +82,7 @@ LogiTrack est une application web ERP complète de gestion de production pour le
 
 ### PWA & Mobile
 - **Progressive Web App** : installation sur mobile/desktop
+- **Application Android** : WebView native avec découverte mDNS
 - **Responsive** : interface adaptée à tous les écrans
 - **Mode fullscreen** : sans barre de navigation sur mobile
 
@@ -77,25 +93,37 @@ LogiTrack est une application web ERP complète de gestion de production pour le
 - **MySQL 8.0** (Laragon)
 - **Socket.io** pour les notifications temps réel
 - **JWT** pour l'authentification
+- **Helmet** + **express-rate-limit** pour la sécurité
 - **PDFKit** pour la génération de rapports et certificats PDF
 - **Multer** pour l'upload de photos
 - **HTTPS** (port 3443) + HTTP (port 3002)
+- **mDNS** (bonjour-service) pour la découverte réseau
 
 ### Frontend
 - **React 18** avec Vite 5.4
 - **Tailwind CSS** pour le design
 - **Lucide React** pour les icônes
 - **Socket.io-client** pour le temps réel
-- **html2canvas** pour les exports
+- **React.lazy** + **Suspense** pour le code splitting
+- **ErrorBoundary** pour la résilience
 
 ### Application Desktop
-- **LogiTrack Launcher** : application bureau C# WinForms (.NET 8)
+- **LogiTrack Launcher** v2.1.0 : application C# WinForms (.NET 8)
+  - 3 services : MySQL + Backend + Frontend
+  - Health check enrichi (version, DB, uptime)
+  - System tray avec menu contextuel
+  - Détection automatique MySQL
+
+### Application Mobile
+- **LogiTrack Android** : WebView Java avec découverte mDNS (NsdManager)
+- APK téléchargeable depuis l'application web
 
 ## 🚀 Installation
 
 ### Prérequis
 - Node.js 18+
 - MySQL 8.0 (Laragon recommandé)
+- .NET 8 SDK (pour le Launcher)
 
 ### Backend
 ```bash
@@ -113,6 +141,13 @@ npm run dev       # Démarrer le frontend (port 5173)
 npm run build     # Build de production
 ```
 
+### Launcher (Desktop)
+```bash
+cd LogiTrack-Launcher
+dotnet build
+dotnet run        # Ou: dotnet publish -c Release -o publish
+```
+
 ## 🔐 Connexion
 
 ### Admin
@@ -128,31 +163,51 @@ Chaque opérateur se connecte avec son code personnel à 6 chiffres.
 LogiTrack/
 ├── backend/
 │   ├── src/
-│   │   ├── config/         # Configuration (DB, upload)
-│   │   ├── database/       # Scripts d'initialisation & migrations
-│   │   ├── middleware/     # Auth JWT
-│   │   ├── routes/         # Routes API (auth, bobines, coulees, tubes, etapes, checklist, comptes)
-│   │   └── server.js       # Point d'entrée (HTTP + HTTPS)
-│   ├── uploads/            # Photos (bobines, coulees)
+│   │   ├── config/          # Configuration (DB, upload)
+│   │   ├── database/        # Scripts d'initialisation & migrations
+│   │   ├── middleware/      # Auth JWT (authenticateToken, signToken)
+│   │   ├── routes/          # 15 routes API (auth, tubes, bobines, coulees, etapes,
+│   │   │                    #   checklist, checklistPeriodique, comptes, dashboard,
+│   │   │                    #   parametres, projetParametres, langues, fournisseurs,
+│   │   │                    #   notifications, audit)
+│   │   ├── utils/           # Utilitaires (audit trail)
+│   │   └── server.js        # Point d'entrée (HTTP + HTTPS + Socket.io + mDNS)
+│   ├── uploads/             # Photos (bobines, coulees)
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/     # Composants React (Layout, Toast, ConfirmModal, ProtectedRoute)
-│   │   ├── context/        # AuthContext
-│   │   ├── pages/          # Pages (Dashboard, Bobines, Coulees, Tubes, Checklists, Login, GestionComptes)
-│   │   ├── services/       # API & Socket
-│   │   └── App.jsx         # Point d'entrée React
-│   ├── public/             # Assets statiques, manifest PWA
+│   │   ├── components/      # Layout, Toast, ConfirmModal, ProtectedRoute,
+│   │   │                    # ErrorBoundary, ChecklistAlert
+│   │   ├── context/         # AuthContext, I18nContext
+│   │   ├── pages/           # 14 pages (Dashboard, Bobines, Coulees, Tubes,
+│   │   │                    #   Checklists, ChecklistPeriodique, HistoriqueChecklist,
+│   │   │                    #   ChecklistMachine, ChecklistGenerale, Login,
+│   │   │                    #   GestionComptes, ParametresProduction,
+│   │   │                    #   ParametresProjet, ParametresLangue)
+│   │   ├── services/        # API & Socket
+│   │   └── App.jsx          # Point d'entrée React (lazy loading)
+│   ├── public/              # Assets statiques, manifest PWA, SW
 │   └── package.json
+├── LogiTrack-Launcher/      # Launcher Desktop C# .NET 8
+├── logitrack-mobile/        # App Android WebView (Java, Gradle)
+├── AndroidLogitrack/        # APK release
+├── assets/                  # Icônes et sons
+├── CHANGELOG.md
 └── README.md
 ```
 
 ## 🔮 Fonctionnalités Futures
 
-- [ ] Intégration WebRTC pour suivi vidéo temps réel
-- [ ] Dashboard analytics avancé avec graphiques
-- [ ] Application mobile native (React Native)
-- [ ] Export Excel des données de production
+- [ ] Cache serveur (traductions, grades acier, stats dashboard avec TTL)
+- [ ] Thumbnails/redimensionnement images pour les listes
+- [ ] State management global (Zustand/Redux)
+- [ ] Export Excel/CSV (exceljs)
+- [ ] Opérations batch (marquage/export en masse)
+- [ ] Recherche globale cross-entités
+- [ ] Logging structuré (Winston/Pino)
+- [ ] Docker/PM2 configuration
+- [ ] CI/CD pipeline
+- [ ] Tests automatisés
 
 ## 👨‍💻 Auteur
 
@@ -164,4 +219,4 @@ Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique détaillé des versions.
 
 ---
 
-*Système ERP de production API 5L — LogiTrack*
+*Système ERP de production API 5L — LogiTrack v2.1.0*
