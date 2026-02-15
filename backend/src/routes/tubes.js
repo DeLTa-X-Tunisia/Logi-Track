@@ -9,6 +9,7 @@ const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 const { uploadTubeEtapePhotos, tubesUploadsDir } = require('../config/upload');
+const { logAudit } = require('../utils/audit');
 
 // ============================================
 // Définition des 12 étapes de production
@@ -126,18 +127,41 @@ router.get('/', async (req, res) => {
     if (decision) { query += ' AND t.decision = ?'; params.push(decision); }
     if (search) { query += ' AND (t.numero LIKE ? OR c.numero LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     
-    query += ' ORDER BY t.created_at DESC';
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const offset = (page - 1) * limit;
+
+    // Count total for pagination metadata
+    const countQuery = query.replace(/SELECT t\.\*.*FROM tubes t/s, 'SELECT COUNT(*) as total FROM tubes t');
+    const [countResult] = await pool.query(countQuery, params);
+    const total = countResult[0].total;
+
+    query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const [tubes] = await pool.query(query, params);
 
-    // Récupérer les étapes pour chaque tube
-    for (const tube of tubes) {
-      const [etapes] = await pool.query(
-        'SELECT * FROM tube_etapes WHERE tube_id = ? ORDER BY etape_numero', [tube.id]
+    // Batch load etapes for all tubes (fix N+1)
+    if (tubes.length > 0) {
+      const tubeIds = tubes.map(t => t.id);
+      const [allEtapes] = await pool.query(
+        'SELECT * FROM tube_etapes WHERE tube_id IN (?) ORDER BY etape_numero',
+        [tubeIds]
       );
-      tube.etapes = etapes;
+      const etapesByTube = {};
+      for (const e of allEtapes) {
+        if (!etapesByTube[e.tube_id]) etapesByTube[e.tube_id] = [];
+        etapesByTube[e.tube_id].push(e);
+      }
+      for (const tube of tubes) {
+        tube.etapes = etapesByTube[tube.id] || [];
+      }
     }
 
-    res.json(tubes);
+    res.json({
+      data: tubes,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
   } catch (error) {
     console.error('Erreur GET /tubes:', error);
     res.status(500).json({ error: 'Erreur récupération tubes' });
@@ -341,6 +365,9 @@ router.post('/', async (req, res) => {
     );
     newTube[0].etapes = etapes;
 
+    // Audit trail
+    logAudit({ action: 'CREATE', entite: 'tube', entiteId: tubeId, req, details: { numero: newTube[0].numero, diametre_mm, coulee_id } });
+
     res.status(201).json(newTube[0]);
   } catch (error) {
     await conn.rollback();
@@ -399,6 +426,10 @@ router.put('/:id/valider-etape', async (req, res) => {
       'SELECT * FROM tube_etapes WHERE tube_id = ? ORDER BY etape_numero', [id]
     );
     updatedTube[0].etapes = etapes;
+
+    // Audit trail - validation d'étape
+    logAudit({ action: 'VALIDATE', entite: 'tube', entiteId: id, req, details: { numero: updatedTube[0].numero, etape_numero, commentaire } });
+
     res.json(updatedTube[0]);
   } catch (error) {
     console.error('Erreur valider-etape:', error);
@@ -665,6 +696,9 @@ router.put('/:id/decision', async (req, res) => {
       });
       console.log(`🔔 Notification émise: ${notifTitre}`);
     }
+
+    // Audit trail - décision finale
+    logAudit({ action: 'DECISION', entite: 'tube', entiteId: id, req, details: { numero: updatedTube[0].numero, decision, commentaire, decision_par } });
 
     res.json(updatedTube[0]);
   } catch (error) {

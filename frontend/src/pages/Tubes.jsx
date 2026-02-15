@@ -159,9 +159,12 @@ export default function Tubes() {
       if (filterEtape) params.append('etape', filterEtape);
       if (filterCoulee) params.append('coulee_id', filterCoulee);
       if (filterDecision) params.append('decision', filterDecision);
+      params.append('limit', '500');
 
       const response = await api.get(`/tubes?${params}`);
-      setTubes(response.data);
+      // Support paginated format { data, pagination } or raw array
+      const tubesData = response.data?.data || response.data;
+      setTubes(Array.isArray(tubesData) ? tubesData : []);
     } catch (e) { console.error(e); }
   }, [search, filterStatut, filterEtape, filterCoulee, filterDecision]);
 

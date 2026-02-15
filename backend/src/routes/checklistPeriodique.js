@@ -46,30 +46,37 @@ router.get('/types', async (req, res) => {
       ORDER BY cpt.ordre
     `);
 
-    // Pour chaque type, récupérer la dernière session
-    for (const type of types) {
-      const [sessions] = await pool.query(`
+    // Batch load last validated session per type (fix N+1)
+    if (types.length > 0) {
+      const typeIds = types.map(t => t.id);
+      const [allSessions] = await pool.query(`
         SELECT s.*, 
-          CONCAT(COALESCE(o.prenom, u.prenom, ''), ' ', COALESCE(o.nom, u.nom, '')) as valideur
+          CONCAT(COALESCE(o.prenom, u.prenom, ''), ' ', COALESCE(o.nom, u.nom, '')) as valideur,
+          ROW_NUMBER() OVER (PARTITION BY s.type_id ORDER BY s.date_validation DESC) as rn
         FROM checklist_periodique_sessions s
         LEFT JOIN operateurs o ON s.operateur_id = o.id
         LEFT JOIN users u ON s.user_id = u.id
-        WHERE s.type_id = ? AND s.statut = 'validee'
-        ORDER BY s.date_validation DESC
-        LIMIT 1
-      `, [type.id]);
+        WHERE s.type_id IN (?) AND s.statut = 'validee'
+      `, [typeIds]);
+      
+      const sessionByType = {};
+      for (const s of allSessions) {
+        if (s.rn === 1) sessionByType[s.type_id] = s;
+      }
 
-      if (sessions.length > 0) {
-        const session = sessions[0];
-        const expiration = new Date(session.date_expiration);
-        const now = new Date();
-        type.derniere_session = session;
-        type.est_valide = expiration > now;
-        type.expire_dans = expiration > now ? Math.round((expiration - now) / (1000 * 60 * 60)) : 0;
-      } else {
-        type.derniere_session = null;
-        type.est_valide = false;
-        type.expire_dans = 0;
+      const now = new Date();
+      for (const type of types) {
+        const session = sessionByType[type.id];
+        if (session) {
+          const expiration = new Date(session.date_expiration);
+          type.derniere_session = session;
+          type.est_valide = expiration > now;
+          type.expire_dans = expiration > now ? Math.round((expiration - now) / (1000 * 60 * 60)) : 0;
+        } else {
+          type.derniere_session = null;
+          type.est_valide = false;
+          type.expire_dans = 0;
+        }
       }
     }
 

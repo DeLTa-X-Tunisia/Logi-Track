@@ -22,13 +22,21 @@ router.get('/', async (req, res) => {
       ORDER BY pp.id DESC
     `);
 
-    // Charger les heads pour chaque preset
-    for (const row of rows) {
-      const [heads] = await pool.query(
-        `SELECT * FROM parametres_soudure_heads WHERE parametre_id = ? ORDER BY type, numero`,
-        [row.id]
+    // Batch load heads for all presets (fix N+1)
+    if (rows.length > 0) {
+      const ids = rows.map(r => r.id);
+      const [allHeads] = await pool.query(
+        `SELECT * FROM parametres_soudure_heads WHERE parametre_id IN (?) ORDER BY type, numero`,
+        [ids]
       );
-      row.heads = heads;
+      const headsByParam = {};
+      for (const h of allHeads) {
+        if (!headsByParam[h.parametre_id]) headsByParam[h.parametre_id] = [];
+        headsByParam[h.parametre_id].push(h);
+      }
+      for (const row of rows) {
+        row.heads = headsByParam[row.id] || [];
+      }
     }
 
     res.json(rows);

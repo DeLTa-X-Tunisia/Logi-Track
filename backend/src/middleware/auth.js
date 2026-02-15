@@ -69,9 +69,16 @@ const requireRole = (...roles) => {
  */
 const requireAdmin = requireRole('admin');
 
+/**
+ * Signer un token JWT (encapsule le secret)
+ */
+const signToken = (payload, options = {}) => {
+  return jwt.sign(payload, JWT_SECRET, options);
+};
+
 module.exports = { 
   authenticateToken, 
   requireRole,
   requireAdmin,
-  JWT_SECRET 
+  signToken
 };

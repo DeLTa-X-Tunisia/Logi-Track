@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
-const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
+const { authenticateToken, signToken } = require('../middleware/auth');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
@@ -69,7 +70,7 @@ router.post('/login', loginValidation, async (req, res) => {
     );
 
     // Générer le token JWT
-    const token = jwt.sign(
+    const token = signToken(
       { 
         userId: user.id,
         username: user.username,
@@ -77,7 +78,6 @@ router.post('/login', loginValidation, async (req, res) => {
         nom: user.nom,
         prenom: user.prenom
       },
-      JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
@@ -89,6 +89,9 @@ router.post('/login', loginValidation, async (req, res) => {
       token,
       user: { ...userWithoutPassword, langue_preferee: user.langue_preferee || 'fr' }
     });
+
+    // Audit trail - connexion admin
+    logAudit({ action: 'LOGIN', entite: 'user', entiteId: user.id, req, details: { username: user.username, role: user.role } });
   } catch (error) {
     console.error('Erreur POST /auth/login:', error);
     res.status(500).json({ error: 'Erreur lors de la connexion' });
@@ -131,7 +134,7 @@ router.post('/login-code', [
     );
 
     // Générer le token JWT
-    const token = jwt.sign(
+    const token = signToken(
       { 
         operateurId: operateur.id,
         nom: operateur.nom,
@@ -140,7 +143,6 @@ router.post('/login-code', [
         role: operateur.is_admin ? 'admin' : 'operateur',
         is_admin: operateur.is_admin || false
       },
-      JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 

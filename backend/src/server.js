@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -21,6 +23,7 @@ const projetParametresRoutes = require('./routes/projetParametres');
 const languesRoutes = require('./routes/langues');
 const fournisseursRoutes = require('./routes/fournisseurs');
 const notificationsRoutes = require('./routes/notifications');
+const auditRoutes = require('./routes/audit');
 
 // Import du middleware d'authentification
 const { authenticateToken } = require('./middleware/auth');
@@ -52,9 +55,13 @@ if (hasSSL) {
 }
 
 // Configuration Socket.io pour notifications temps réel (préparation future)
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:5173', 'http://localhost:3002'];
+
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 });
@@ -62,13 +69,51 @@ const io = new Server(server, {
 // Rendre io accessible aux routes via req.app.get('io')
 app.set('io', io);
 
+// Sécurité HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Désactivé pour compatibilité frontend SPA
+  crossOriginEmbedderPolicy: false
+}));
+
 // Middlewares
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    callback(new Error('CORS non autorisé'));
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Servir les fichiers uploadés (photos)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Rate limiting global
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: parseInt(process.env.RATE_LIMIT_API || '300'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes, réessayez dans quelques minutes' }
+});
+
+// Rate limiting strict pour l'authentification
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH || '20'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives de connexion, réessayez dans 15 minutes' }
+});
+
+// Appliquer rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
+
+// Servir les fichiers uploadés (photos) - protégés par auth
+app.use('/uploads', authenticateToken, express.static(path.join(__dirname, '../uploads')));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -76,12 +121,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// Route de santé (publique)
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+// Route de santé (publique) - vérifie la DB
+app.get('/api/health', async (req, res) => {
+  let dbOk = false;
+  try {
+    const pool = require('./config/database');
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
+    dbOk = true;
+  } catch (e) { /* DB down */ }
+
+  const status = dbOk ? 'OK' : 'DEGRADED';
+  res.status(dbOk ? 200 : 503).json({ 
+    status, 
     message: 'Logi-Track API is running - Certification API 5L',
-    version: '1.0.0',
+    version: '2.1.0',
+    database: dbOk ? 'connected' : 'disconnected',
+    uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });
@@ -103,6 +160,7 @@ app.use('/api/checklist-periodique', checklistPeriodiqueRoutes); // Checklists p
 app.use('/api/dashboard', authenticateToken, dashboardRoutes); // Dashboard stats
 app.use('/api/fournisseurs', fournisseursRoutes); // Gestion des fournisseurs
 app.use('/api/notifications', authenticateToken, notificationsRoutes); // Notifications
+app.use('/api/audit', auditRoutes); // Journal d'audit (auth interne)
 
 // Téléchargement APK Android (publique)
 const apkPath = path.join(__dirname, '../../AndroidLogitrack/app-release.apk');
