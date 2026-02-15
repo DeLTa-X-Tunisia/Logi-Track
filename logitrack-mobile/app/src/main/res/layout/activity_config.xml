@@ -169,10 +169,12 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/input_bg"
-                android:hint="192.168.1.100"
+                android:hint="Ex: 192.168.1.100"
                 android:inputType="text"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
                 android:textSize="16sp" />
 
             <TextView
@@ -190,11 +192,13 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/input_bg"
-                android:hint="3002"
+                android:hint="Port (par défaut : 3002)"
                 android:inputType="number"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:text="3002"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
                 android:textSize="16sp" />
 
             <Button
