@@ -307,9 +307,9 @@ router.post('/', async (req, res) => {
       if (p.heads && Array.isArray(p.heads)) {
         for (const head of p.heads) {
           await conn.query(`
-            INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `, [finalParametreId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0]);
+            INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage, type_fil)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `, [finalParametreId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0, head.type_fil || '3.2mm']);
         }
       }
     }
@@ -1294,18 +1294,18 @@ router.get('/:id/pdf', async (req, res) => {
       const sawRow = doc.y;
       const sawParams = [
         { label: 'Vitesse Soudure', value: `${parametres.soudure_vitesse_m || 0} m ${parametres.soudure_vitesse_cm || 0} cm/min` },
-        { label: 'Type Fil', value: parametres.soudure_type_fil || '-' },
         { label: 'Type Flux', value: parametres.soudure_type_flux || '-' },
       ];
+      const sawColW2 = pageWidth / 2;
 
       sawParams.forEach((p, idx) => {
-        const sx = 40 + idx * sawColW;
-        doc.rect(sx, sawRow, sawColW, pRowH).fill('#f8fafc');
-        doc.rect(sx, sawRow, sawColW, pRowH).stroke(border);
+        const sx = 40 + idx * sawColW2;
+        doc.rect(sx, sawRow, sawColW2, pRowH).fill('#f8fafc');
+        doc.rect(sx, sawRow, sawColW2, pRowH).stroke(border);
         doc.fillColor(gray).fontSize(6).font('Helvetica')
            .text(p.label, sx + 6, sawRow + 4, { lineBreak: false });
         doc.fillColor('#111827').fontSize(6.5).font('Helvetica-Bold')
-           .text(p.value, sx + sawColW / 2, sawRow + 4, { width: sawColW / 2 - 6, lineBreak: false });
+           .text(p.value, sx + sawColW2 / 2, sawRow + 4, { width: sawColW2 / 2 - 6, lineBreak: false });
       });
       doc.y = sawRow + pRowH + 6;
 
@@ -1323,9 +1323,9 @@ router.get('/:id/pdf', async (req, res) => {
              .text('TÊTES ID (Intérieur)', leftX + 6, headsStartY + 4, { lineBreak: false });
 
           let hy = headsStartY + pRowH;
-          // Sub-header
-          const subHdrW = [pColW * 0.3, pColW * 0.15, pColW * 0.275, pColW * 0.275];
-          const subHdrs = ['Tête', 'Actif', 'Ampérage', 'Voltage'];
+          // Sub-header with Fil column
+          const subHdrW = [pColW * 0.22, pColW * 0.13, pColW * 0.22, pColW * 0.22, pColW * 0.21];
+          const subHdrs = ['Tête', 'Actif', 'Fil', 'Ampérage', 'Voltage'];
           let shx = leftX;
           subHdrs.forEach((sh, si) => {
             doc.rect(shx, hy, subHdrW[si], 12).fill('#e0e7ff');
@@ -1339,7 +1339,7 @@ router.get('/:id/pdf', async (req, res) => {
           for (const head of idHeads) {
             const bg = head.actif ? 'white' : '#fef2f2';
             shx = leftX;
-            const vals = [`Tête ${head.numero}`, head.actif ? 'Oui' : 'Non', head.actif ? `${head.amperage} A` : '-', head.actif ? `${head.voltage} V` : '-'];
+            const vals = [`Tête ${head.numero}`, head.actif ? 'Oui' : 'Non', head.type_fil || '3.2mm', head.actif ? `${head.amperage} A` : '-', head.actif ? `${head.voltage} V` : '-'];
             vals.forEach((v, vi) => {
               doc.rect(shx, hy, subHdrW[vi], 12).fill(bg);
               doc.rect(shx, hy, subHdrW[vi], 12).stroke(border);
@@ -1359,8 +1359,8 @@ router.get('/:id/pdf', async (req, res) => {
              .text('TÊTES OD (Extérieur)', rightX + 6, headsStartY + 4, { lineBreak: false });
 
           let hy = headsStartY + pRowH;
-          const subHdrW = [pColW * 0.3, pColW * 0.15, pColW * 0.275, pColW * 0.275];
-          const subHdrs = ['Tête', 'Actif', 'Ampérage', 'Voltage'];
+          const subHdrW = [pColW * 0.22, pColW * 0.13, pColW * 0.22, pColW * 0.22, pColW * 0.21];
+          const subHdrs = ['Tête', 'Actif', 'Fil', 'Ampérage', 'Voltage'];
           let shx = rightX;
           subHdrs.forEach((sh, si) => {
             doc.rect(shx, hy, subHdrW[si], 12).fill('#e0e7ff');
@@ -1374,7 +1374,7 @@ router.get('/:id/pdf', async (req, res) => {
           for (const head of odHeads) {
             const bg = head.actif ? 'white' : '#fef2f2';
             shx = rightX;
-            const vals = [`Tête ${head.numero}`, head.actif ? 'Oui' : 'Non', head.actif ? `${head.amperage} A` : '-', head.actif ? `${head.voltage} V` : '-'];
+            const vals = [`Tête ${head.numero}`, head.actif ? 'Oui' : 'Non', head.type_fil || '3.2mm', head.actif ? `${head.amperage} A` : '-', head.actif ? `${head.voltage} V` : '-'];
             vals.forEach((v, vi) => {
               doc.rect(shx, hy, subHdrW[vi], 12).fill(bg);
               doc.rect(shx, hy, subHdrW[vi], 12).stroke(border);

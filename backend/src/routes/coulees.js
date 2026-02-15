@@ -984,9 +984,9 @@ router.put('/:id/parametres', async (req, res) => {
       if (p.heads && Array.isArray(p.heads)) {
         for (const head of p.heads) {
           await conn.query(`
-            INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `, [finalParametreId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0]);
+            INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage, type_fil)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `, [finalParametreId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0, head.type_fil || '3.2mm']);
         }
       }
     } else {

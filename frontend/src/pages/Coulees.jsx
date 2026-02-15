@@ -1541,12 +1541,6 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Type fil</label>
-                        <select value={editForm.soudure_type_fil} onChange={e => setEditForm(f => ({...f, soudure_type_fil: e.target.value}))} className="w-full px-2 py-1.5 border rounded text-sm">
-                          {FIL_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-600 mb-1">Type flux</label>
                         <select value={editForm.soudure_type_flux} onChange={e => setEditForm(f => ({...f, soudure_type_flux: e.target.value}))} className="w-full px-2 py-1.5 border rounded text-sm">
                           {FLUX_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
@@ -1568,6 +1562,9 @@ function CouleeDetailModal({ coulee, motifsRetard, presets, onClose, onRefresh, 
                           </button>
                           {head.actif && (
                             <>
+                              <select value={head.type_fil || '3.2mm'} onChange={e => { const u = [...editHeads]; u[idx] = {...u[idx], type_fil: e.target.value}; setEditHeads(u); }} className="w-20 px-1 py-1 border rounded text-sm">
+                                {FIL_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                              </select>
                               <input type="number" value={head.amperage} onChange={e => { const u = [...editHeads]; u[idx] = {...u[idx], amperage: Number(e.target.value)}; setEditHeads(u); }} className="w-16 px-2 py-1 border rounded text-sm" placeholder="A" />
                               <span className="text-xs text-gray-400">A</span>
                               <input type="number" value={head.voltage} onChange={e => { const u = [...editHeads]; u[idx] = {...u[idx], voltage: Number(e.target.value)}; setEditHeads(u); }} className="w-16 px-2 py-1 border rounded text-sm" placeholder="V" />

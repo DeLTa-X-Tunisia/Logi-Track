@@ -48,11 +48,11 @@ const DIAMETRES = [
 ];
 
 const DEFAULT_HEADS = [
-  { type: 'ID', numero: 1, actif: true, amperage: 0, voltage: 0 },
-  { type: 'ID', numero: 2, actif: true, amperage: 0, voltage: 0 },
-  { type: 'ID', numero: 3, actif: false, amperage: 0, voltage: 0 },
-  { type: 'OD', numero: 1, actif: true, amperage: 0, voltage: 0 },
-  { type: 'OD', numero: 2, actif: true, amperage: 0, voltage: 0 },
+  { type: 'ID', numero: 1, actif: true, amperage: 0, voltage: 0, type_fil: '3.2mm' },
+  { type: 'ID', numero: 2, actif: true, amperage: 0, voltage: 0, type_fil: '3.2mm' },
+  { type: 'ID', numero: 3, actif: false, amperage: 0, voltage: 0, type_fil: '3.2mm' },
+  { type: 'OD', numero: 1, actif: true, amperage: 0, voltage: 0, type_fil: '3.2mm' },
+  { type: 'OD', numero: 2, actif: true, amperage: 0, voltage: 0, type_fil: '3.2mm' },
 ];
 
 const EMPTY_FORM = {
@@ -149,7 +149,7 @@ export default function ParametresProduction() {
     });
     setHeads(
       preset.heads && preset.heads.length > 0
-        ? preset.heads.map(h => ({ ...h, actif: !!h.actif }))
+        ? preset.heads.map(h => ({ ...h, actif: !!h.actif, type_fil: h.type_fil || '3.2mm' }))
         : JSON.parse(JSON.stringify(DEFAULT_HEADS))
     );
     setEditingId(preset.id);
@@ -676,17 +676,7 @@ function PresetModal({ editingId, numero, diametre, formData, setFormData, heads
                 onMChange={(v) => update('soudure_vitesse_m', v)}
                 onCmChange={(v) => update('soudure_vitesse_cm', v)}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de fil (Wire)</label>
-                  <select
-                    value={formData.soudure_type_fil}
-                    onChange={(e) => update('soudure_type_fil', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 bg-white"
-                  >
-                    {FIL_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type de flux</label>
                   <select
@@ -786,6 +776,20 @@ function HeadRow({ head, index, onUpdate }) {
         {head.actif ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
         {head.actif ? 'Oui' : 'Non'}
       </button>
+
+      {/* Type de fil */}
+      <select
+        value={head.type_fil || '3.2mm'}
+        onChange={(e) => onUpdate(index, 'type_fil', e.target.value)}
+        disabled={!head.actif}
+        className={`w-20 px-1.5 py-1.5 text-sm border rounded-lg text-center ${
+          head.actif 
+            ? 'border-gray-300 bg-white focus:ring-2 focus:ring-violet-500' 
+            : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+        }`}
+      >
+        {FIL_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+      </select>
 
       {/* Ampérage */}
       <div className="flex items-center gap-1">
@@ -913,7 +917,6 @@ function DetailModal({ preset, onClose, formatVitesse, formatGaz }) {
             </h3>
             <div className="grid grid-cols-2 gap-3 text-sm mb-4">
               <DetailRow label="Vitesse soudure" value={formatVitesse(preset.soudure_vitesse_m, preset.soudure_vitesse_cm)} />
-              <DetailRow label="Type de fil" value={preset.soudure_type_fil} />
               <DetailRow label="Type de flux" value={preset.soudure_type_flux} />
             </div>
 
@@ -931,6 +934,9 @@ function DetailModal({ preset, onClose, formatVitesse, formatGaz }) {
                     h.actif ? 'bg-green-500 text-white' : 'bg-red-400 text-white'
                   }`}>
                     {h.actif ? 'Oui' : 'Non'}
+                  </span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-violet-100 text-violet-700">
+                    {h.type_fil || '3.2mm'}
                   </span>
                   <span className="ml-auto text-sm font-mono">
                     <span className={h.actif ? 'text-gray-900' : 'text-red-400'}>{h.amperage} Amps</span>

@@ -174,9 +174,9 @@ router.post('/', async (req, res) => {
     if (heads && Array.isArray(heads)) {
       for (const head of heads) {
         await conn.query(`
-          INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, [presetId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0]);
+          INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage, type_fil)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [presetId, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0, head.type_fil || '3.2mm']);
       }
     }
 
@@ -251,9 +251,9 @@ router.put('/:id', async (req, res) => {
       await conn.query(`DELETE FROM parametres_soudure_heads WHERE parametre_id = ?`, [id]);
       for (const head of heads) {
         await conn.query(`
-          INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, [id, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0]);
+          INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage, type_fil)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [id, head.type, head.numero, head.actif ? 1 : 0, head.actif ? (head.amperage || 0) : 0, head.actif ? (head.voltage || 0) : 0, head.type_fil || '3.2mm']);
       }
     }
 
@@ -369,9 +369,9 @@ router.post('/:id/dupliquer', async (req, res) => {
     const [heads] = await conn.query(`SELECT * FROM parametres_soudure_heads WHERE parametre_id = ?`, [id]);
     for (const h of heads) {
       await conn.query(`
-        INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [newId, h.type, h.numero, h.actif, h.amperage, h.voltage]);
+        INSERT INTO parametres_soudure_heads (parametre_id, type, numero, actif, amperage, voltage, type_fil)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [newId, h.type, h.numero, h.actif, h.amperage, h.voltage, h.type_fil || '3.2mm']);
     }
 
     await conn.commit();
