@@ -8,10 +8,10 @@
     <ApplicationIcon>..\assets\icon.ico</ApplicationIcon>
     <AssemblyName>LogiTrack-Launcher</AssemblyName>
     <RootNamespace>LogiTrackLauncher</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>2.1.0</Version>
     <Company>LogiTrack</Company>
     <Product>LogiTrack Launcher</Product>
-    <Description>Lanceur pour l'application LogiTrack - Gestion de production</Description>
+    <Description>Lanceur pour l'application LogiTrack - ERP Production Tubes API 5L</Description>
   </PropertyGroup>
 
   <ItemGroup>
