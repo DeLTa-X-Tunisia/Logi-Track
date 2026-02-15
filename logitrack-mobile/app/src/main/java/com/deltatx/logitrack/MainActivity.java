@@ -7,10 +7,13 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -18,10 +21,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,15 +37,14 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefresh;
-    private LinearLayout errorView;
     private ProgressBar loadingBar;
-    private TextView tvErrorMessage;
-    private Button btnRetry;
-    private Button btnReconfigure;
 
     private String serverUrl;
     private boolean isPageLoaded = false;
+    private boolean isShowingError = false;
+    private String lastErrorMessage = "";
     private NsdHelper nsdHelper;
+    private Handler retryHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +56,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Garder l'écran allumé (usage industriel)
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        retryHandler = new Handler(Looper.getMainLooper());
 
         initViews();
         setupWebView();
@@ -74,32 +75,18 @@ public class MainActivity extends AppCompatActivity {
 
         // Swipe-to-refresh
         swipeRefresh.setOnRefreshListener(() -> {
-            webView.reload();
-        });
-
-        // Boutons d'erreur
-        btnRetry.setOnClickListener(v -> {
-            errorView.setVisibility(View.GONE);
-            loadApp();
-        });
-
-        btnReconfigure.setOnClickListener(v -> {
-            // Effacer la config et retourner à la configuration
-            SharedPreferences.Editor editor = prefs.edit();
-            editor.remove("server_url");
-            editor.apply();
-            goToConfig();
+            if (isShowingError) {
+                loadApp();
+            } else {
+                webView.reload();
+            }
         });
     }
 
     private void initViews() {
         webView = findViewById(R.id.webview);
         swipeRefresh = findViewById(R.id.swipe_refresh);
-        errorView = findViewById(R.id.error_view);
         loadingBar = findViewById(R.id.loading_bar);
-        tvErrorMessage = findViewById(R.id.tv_error_message);
-        btnRetry = findViewById(R.id.btn_retry);
-        btnReconfigure = findViewById(R.id.btn_reconfigure);
 
         swipeRefresh.setColorSchemeColors(
             getResources().getColor(R.color.primary_500, getTheme()),
@@ -140,12 +127,18 @@ public class MainActivity extends AppCompatActivity {
         String ua = settings.getUserAgentString();
         settings.setUserAgentString(ua + " LogiTrack-Android/2.0.0");
 
+        // JavaScript bridge pour communication error page ↔ Android
+        webView.addJavascriptInterface(new LogiTrackBridge(), "LogiTrackBridge");
+
         // WebViewClient pour gérer la navigation
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                loadingBar.setVisibility(View.VISIBLE);
+                // Ne pas afficher la loading bar si on charge la page d'erreur locale
+                if (!url.startsWith("file:///android_asset/")) {
+                    loadingBar.setVisibility(View.VISIBLE);
+                }
                 isPageLoaded = false;
             }
 
@@ -154,23 +147,26 @@ public class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 loadingBar.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                errorView.setVisibility(View.GONE);
-                webView.setVisibility(View.VISIBLE);
-                isPageLoaded = true;
 
-                // Injecter du CSS pour optimiser l'affichage mobile
-                injectMobileOptimizations();
+                if (url.startsWith("file:///android_asset/error.html")) {
+                    // Page d'erreur chargée → injecter les infos d'erreur et les checks
+                    isShowingError = true;
+                    updateErrorPageChecks();
+                } else {
+                    // Page LogiTrack chargée avec succès
+                    isShowingError = false;
+                    isPageLoaded = true;
+                    injectMobileOptimizations();
+                }
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame()) {
-                    showError("Connexion impossible au serveur LogiTrack.\n\n" +
-                        "Vérifiez que:\n" +
-                        "• Vous êtes connecté au réseau WiFi de l'usine\n" +
-                        "• Le serveur LogiTrack est démarré\n\n" +
-                        "Erreur: " + error.getDescription());
+                    lastErrorMessage = error.getDescription().toString();
+                    Log.w(TAG, "WebView error: " + lastErrorMessage);
+                    showCustomErrorPage(lastErrorMessage);
                 }
             }
         });
@@ -210,6 +206,64 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * JavaScript bridge — permet à la page d'erreur HTML d'appeler des méthodes Android
+     */
+    private class LogiTrackBridge {
+        @JavascriptInterface
+        public void retry() {
+            retryHandler.post(() -> loadApp());
+        }
+
+        @JavascriptInterface
+        public void reconfigure() {
+            retryHandler.post(() -> {
+                SharedPreferences prefs = getSharedPreferences("logitrack_config", MODE_PRIVATE);
+                prefs.edit().remove("server_url").apply();
+                goToConfig();
+            });
+        }
+    }
+
+    /**
+     * Affiche la page d'erreur personnalisée dans le WebView
+     */
+    private void showCustomErrorPage(String errorMessage) {
+        isShowingError = true;
+        loadingBar.setVisibility(View.GONE);
+        swipeRefresh.setRefreshing(false);
+
+        // Charger la page d'erreur depuis les assets
+        webView.stopLoading();
+        webView.loadUrl("file:///android_asset/error.html");
+
+        // Après chargement, injecter les détails
+        retryHandler.postDelayed(() -> updateErrorPageChecks(), 800);
+    }
+
+    /**
+     * Met à jour les indicateurs de la page d'erreur (WiFi, serveur, réseau)
+     */
+    private void updateErrorPageChecks() {
+        boolean hasWifi = isNetworkAvailable();
+        String wifiStatus = hasWifi ? "ok" : "fail";
+        String serverStatus = "fail";
+        String networkStatus = hasWifi ? "pending" : "fail";
+
+        String safeUrl = serverUrl != null ? serverUrl.replace("'", "\\'") : "";
+        String safeError = lastErrorMessage != null ? lastErrorMessage.replace("'", "\\'") : "";
+
+        String js = String.format(
+            "setCheckStatus('check-wifi', '%s');" +
+            "setCheckStatus('check-server', '%s');" +
+            "setCheckStatus('check-network', '%s');" +
+            "setErrorInfo('%s', '%s');",
+            wifiStatus, serverStatus, networkStatus, safeError, safeUrl
+        );
+
+        webView.evaluateJavascript(js, null);
+    }
+
+    /**
      * Injecte des optimisations CSS pour l'affichage mobile
      */
     private void injectMobileOptimizations() {
@@ -230,18 +284,15 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadApp() {
         if (serverUrl != null) {
-            errorView.setVisibility(View.GONE);
-            webView.setVisibility(View.VISIBLE);
+            isShowingError = false;
             loadingBar.setVisibility(View.VISIBLE);
 
             // Vérifier la connectivité WiFi d'abord
             if (!isNetworkAvailable()) {
-                showError("Pas de connexion réseau.\n\n" +
-                    "Veuillez vous connecter au réseau WiFi de l'usine.");
+                showCustomErrorPage("Pas de connexion réseau WiFi");
                 return;
             }
 
-            // Tenter la redécouverte mDNS si la connexion échoue
             webView.loadUrl(serverUrl);
         }
     }
@@ -258,14 +309,6 @@ public class MainActivity extends AppCompatActivity {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
         );
-    }
-
-    private void showError(String message) {
-        loadingBar.setVisibility(View.GONE);
-        swipeRefresh.setRefreshing(false);
-        webView.setVisibility(View.GONE);
-        errorView.setVisibility(View.VISIBLE);
-        tvErrorMessage.setText(message);
     }
 
     private void goToConfig() {

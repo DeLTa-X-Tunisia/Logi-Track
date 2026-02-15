@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LogiTrack — Connexion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(145deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* ===== Animated radar/pulse effect ===== */
+  .radar-container {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin-bottom: 32px;
+  }
+
+  .radar-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(96, 165, 250, 0.3);
+    border-radius: 50%;
+    animation: radarPulse 2.5s ease-out infinite;
+  }
+  .radar-ring:nth-child(1) { animation-delay: 0s; }
+  .radar-ring:nth-child(2) { animation-delay: 0.6s; }
+  .radar-ring:nth-child(3) { animation-delay: 1.2s; }
+
+  @keyframes radarPulse {
+    0% { width: 40px; height: 40px; opacity: 1; border-color: rgba(96, 165, 250, 0.8); }
+    100% { width: 160px; height: 160px; opacity: 0; border-color: rgba(96, 165, 250, 0); }
+  }
+
+  /* Center icon */
+  .radar-icon {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px; height: 56px;
+    background: rgba(59, 130, 246, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+  }
+
+  .radar-icon svg {
+    width: 28px; height: 28px;
+    fill: none;
+    stroke: #93c5fd;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    animation: iconPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes iconPulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* ===== Logo ===== */
+  .logo {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(147, 197, 253, 0.8);
+    margin-bottom: 8px;
+  }
+
+  /* ===== Title ===== */
+  .title {
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: rgba(191, 219, 254, 0.7);
+    text-align: center;
+    line-height: 1.6;
+    max-width: 320px;
+    margin-bottom: 12px;
+  }
+
+  /* ===== Status indicator ===== */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 24px;
+    margin-bottom: 32px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fbbf24;
+    animation: dotBlink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .status-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+  }
+
+  #countdown {
+    font-weight: 600;
+    color: #93c5fd;
+  }
+
+  /* ===== Checklist ===== */
+  .checklist {
+    width: 100%;
+    max-width: 320px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 28px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .checklist-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .checklist-item .icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .check-pending .icon {
+    border: 2px solid rgba(255,255,255,0.2);
+  }
+
+  .check-ok .icon {
+    background: rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+  }
+
+  .check-fail .icon {
+    background: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+  }
+
+  /* ===== Buttons ===== */
+  .buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+  }
+
+  .btn-primary:active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  }
+
+  .btn-secondary {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .btn-secondary:active {
+    background: rgba(255,255,255,0.15);
+  }
+
+  .btn svg {
+    width: 18px; height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .btn-primary .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    100% { transform: rotate(360deg); }
+  }
+
+  /* ===== Error detail ===== */
+  .error-detail {
+    margin-top: 20px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    text-align: center;
+    max-width: 320px;
+    word-break: break-all;
+  }
+
+  /* ===== Fade-in ===== */
+  .fade-in {
+    animation: fadeIn 0.6s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+  <div class="radar-container fade-in">
+    <div class="radar-ring"></div>
+    <div class="radar-ring"></div>
+    <div class="radar-ring"></div>
+    <div class="radar-icon">
+      <!-- WiFi search icon -->
+      <svg viewBox="0 0 24 24">
+        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="logo fade-in">LOGITRACK</div>
+  <div class="title fade-in">Connexion au serveur impossible</div>
+  <div class="subtitle fade-in">Recherche du serveur en cours…<br>L'application se reconnectera automatiquement.</div>
+
+  <div class="status-bar fade-in">
+    <div class="status-dot"></div>
+    <span class="status-text">Nouvelle tentative dans <span id="countdown">10</span>s</span>
+  </div>
+
+  <div class="checklist fade-in">
+    <div class="checklist-title">Vérifications</div>
+    <div class="checklist-item check-pending" id="check-wifi">
+      <div class="icon"></div>
+      <span>Connexion WiFi usine active</span>
+    </div>
+    <div class="checklist-item check-pending" id="check-server">
+      <div class="icon"></div>
+      <span>Serveur LogiTrack démarré</span>
+    </div>
+    <div class="checklist-item check-pending" id="check-network">
+      <div class="icon"></div>
+      <span>Appareil sur le même réseau</span>
+    </div>
+  </div>
+
+  <div class="buttons fade-in">
+    <button class="btn btn-primary" id="btnRetry" onclick="retryNow()">
+      <svg class="spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+      Réessayer maintenant
+    </button>
+    <button class="btn btn-secondary" onclick="reconfigure()">
+      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      Reconfigurer le serveur
+    </button>
+  </div>
+
+  <div class="error-detail fade-in" id="errorDetail"></div>
+
+<script>
+  var RETRY_INTERVAL = 10;
+  var countdown = RETRY_INTERVAL;
+  var timer = null;
+  var retryCount = 0;
+
+  function startCountdown() {
+    countdown = RETRY_INTERVAL;
+    updateCountdown();
+    if (timer) clearInterval(timer);
+    timer = setInterval(function() {
+      countdown--;
+      updateCountdown();
+      if (countdown <= 0) {
+        clearInterval(timer);
+        retryNow();
+      }
+    }, 1000);
+  }
+
+  function updateCountdown() {
+    var el = document.getElementById('countdown');
+    if (el) el.textContent = countdown;
+  }
+
+  function retryNow() {
+    if (timer) clearInterval(timer);
+    retryCount++;
+    
+    // Show loading state on button
+    var btn = document.getElementById('btnRetry');
+    btn.innerHTML = '<svg class="spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg> Connexion en cours…';
+    
+    // Tell the Android app to retry
+    if (window.LogiTrackBridge && window.LogiTrackBridge.retry) {
+      window.LogiTrackBridge.retry();
+    } else {
+      // Fallback: reload after delay
+      setTimeout(function() {
+        window.location.reload();
+      }, 500);
+    }
+  }
+
+  function reconfigure() {
+    if (window.LogiTrackBridge && window.LogiTrackBridge.reconfigure) {
+      window.LogiTrackBridge.reconfigure();
+    }
+  }
+
+  // Called from Android to set error details
+  function setErrorInfo(errorMsg, serverUrl) {
+    var detail = document.getElementById('errorDetail');
+    if (detail && serverUrl) {
+      detail.textContent = 'Serveur : ' + serverUrl + (errorMsg ? ' — ' + errorMsg : '');
+    }
+  }
+
+  // Called from Android to update check status
+  function setCheckStatus(checkId, status) {
+    var el = document.getElementById(checkId);
+    if (!el) return;
+    el.className = 'checklist-item ' + (status === 'ok' ? 'check-ok' : status === 'fail' ? 'check-fail' : 'check-pending');
+    var icon = el.querySelector('.icon');
+    if (icon) {
+      icon.textContent = status === 'ok' ? '✓' : status === 'fail' ? '✗' : '';
+    }
+  }
+
+  // Start auto-retry countdown
+  startCountdown();
+</script>
+
+</body>
+</html>
