@@ -19,6 +19,12 @@ import api from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+/** Build a photo URL with auth token for <img> tags */
+const getPhotoUrl = (photoPath) => {
+  const token = localStorage.getItem('logitrack_token');
+  return `${API_URL}${photoPath}${token ? `?token=${token}` : ''}`;
+};
+
 // ============================================
 // Constantes - 12 étapes de production
 // ============================================
@@ -1548,10 +1554,10 @@ function TubeDetailModal({ tube, onClose, onUpdate }) {
                               {(etapePhotos[etapeDef.numero] || []).map(photo => (
                                 <div key={photo.id} className="relative group">
                                   <img
-                                    src={`${API_URL}${photo.path}`}
+                                    src={getPhotoUrl(photo.path)}
                                     alt={photo.original_name}
                                     className="w-12 h-12 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => setPhotoViewer({ src: `${API_URL}${photo.path}`, alt: photo.original_name })}
+                                    onClick={() => setPhotoViewer({ src: getPhotoUrl(photo.path), alt: photo.original_name })}
                                   />
                                   <button
                                     onClick={(e) => { e.stopPropagation(); deletePhoto(photo.id); }}

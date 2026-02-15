@@ -8,7 +8,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'logitrack_api5l_secret_key_change_
  */
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
+    || req.query.token; // Support token via query param (for <img src> tags)
 
   if (!token) {
     return res.status(401).json({ 

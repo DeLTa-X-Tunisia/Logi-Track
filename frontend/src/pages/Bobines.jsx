@@ -8,6 +8,12 @@ import { useConfirm } from '../components/ConfirmModal';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+/** Build a photo URL with auth token for <img> tags */
+const getPhotoUrl = (photoPath) => {
+  const token = localStorage.getItem('logitrack_token');
+  return `${API_URL}${photoPath}${token ? `?token=${token}` : ''}`;
+};
+
 export default function Bobines() {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -654,7 +660,7 @@ export default function Bobines() {
                     {photos.map(photo => (
                       <div key={photo.id} className="relative group">
                         <img
-                          src={`${API_URL}${photo.path}`}
+                          src={getPhotoUrl(photo.path)}
                           alt={photo.original_name}
                           className="w-full h-20 object-cover rounded-lg border border-gray-200"
                         />
@@ -906,13 +912,13 @@ export default function Bobines() {
                     {viewPhotos.map(photo => (
                       <a 
                         key={photo.id} 
-                        href={`${API_URL}${photo.path}`} 
+                        href={getPhotoUrl(photo.path)} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block"
                       >
                         <img
-                          src={`${API_URL}${photo.path}`}
+                          src={getPhotoUrl(photo.path)}
                           alt={photo.original_name}
                           className="w-full h-24 object-cover rounded-lg border border-gray-200 hover:border-primary-400 transition-colors"
                         />
