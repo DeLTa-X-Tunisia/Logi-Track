@@ -18,6 +18,12 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+const getPhotoUrl = (path) => {
+  if (!path) return '';
+  const token = localStorage.getItem('logitrack_token');
+  return `${API_URL}/${path}${token ? `?token=${token}` : ''}`;
+};
+
 export default function ParametresProjet() {
   const { isAdmin } = useAuth();
   const toast = useToast();
@@ -176,7 +182,7 @@ export default function ParametresProjet() {
             <div className="w-40 h-40 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 overflow-hidden">
               {parametres.logo_path ? (
                 <img
-                  src={`${API_URL}/${parametres.logo_path}`}
+                  src={getPhotoUrl(parametres.logo_path)}
                   alt="Logo entreprise"
                   className="w-full h-full object-contain p-2"
                 />
@@ -225,7 +231,7 @@ export default function ParametresProjet() {
             <div className="w-40 h-40 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 overflow-hidden">
               {parametres.client_logo_path ? (
                 <img
-                  src={`${API_URL}/${parametres.client_logo_path}`}
+                  src={getPhotoUrl(parametres.client_logo_path)}
                   alt="Logo client"
                   className="w-full h-full object-contain p-2"
                 />
@@ -361,7 +367,7 @@ export default function ParametresProjet() {
           <div className="flex items-center gap-4">
             {parametres.logo_path && (
               <img
-                src={`${API_URL}/${parametres.logo_path}`}
+                src={getPhotoUrl(parametres.logo_path)}
                 alt="Logo"
                 className="h-10 w-auto object-contain"
               />
@@ -370,7 +376,7 @@ export default function ParametresProjet() {
               <>
                 {parametres.logo_path && <div className="w-px h-8 bg-gray-300" />}
                 <img
-                  src={`${API_URL}/${parametres.client_logo_path}`}
+                  src={getPhotoUrl(parametres.client_logo_path)}
                   alt="Logo client"
                   className="h-10 w-auto object-contain"
                 />

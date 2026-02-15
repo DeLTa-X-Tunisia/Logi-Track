@@ -39,6 +39,12 @@ import ChecklistAlert from './ChecklistAlert';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+const getPhotoUrl = (path) => {
+  if (!path) return '';
+  const token = localStorage.getItem('logitrack_token');
+  return `${API_URL}/${path}${token ? `?token=${token}` : ''}`;
+};
+
 const navigationKeys = [
   { key: 'nav.dashboard', href: '/', icon: LayoutDashboard },
   { key: 'nav.bobines', href: '/bobines', icon: Package, color: 'text-indigo-500' },
@@ -372,7 +378,7 @@ export default function Layout({ children }) {
               <div className="hidden md:flex items-center gap-3 ml-4">
                 {projetParams.logo_path && (
                   <img
-                    src={`${API_URL}/${projetParams.logo_path}`}
+                    src={getPhotoUrl(projetParams.logo_path)}
                     alt="Logo"
                     className="h-9 w-auto object-contain"
                   />
@@ -381,7 +387,7 @@ export default function Layout({ children }) {
                   <>
                     {projetParams.logo_path && <div className="w-px h-7 bg-gray-200" />}
                     <img
-                      src={`${API_URL}/${projetParams.client_logo_path}`}
+                      src={getPhotoUrl(projetParams.client_logo_path)}
                       alt="Logo client"
                       className="h-9 w-auto object-contain"
                     />
