@@ -31,7 +31,8 @@ import {
   Award,
   AlertTriangle,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  Trash2
 } from 'lucide-react';
 
 import ChecklistAlert from './ChecklistAlert';
@@ -232,6 +233,26 @@ export default function Layout({ children }) {
       .catch(() => {});
   };
 
+  // Supprimer une notification individuelle
+  const deleteNotification = (notifId, wasUnread) => {
+    api.delete(`/notifications/${notifId}`)
+      .then(() => {
+        setNotifications(prev => prev.filter(n => n.id !== notifId));
+        if (wasUnread) setUnreadCount(prev => Math.max(0, prev - 1));
+      })
+      .catch(() => {});
+  };
+
+  // Supprimer toutes les notifications
+  const deleteAllNotifications = () => {
+    api.delete('/notifications/tout')
+      .then(() => {
+        setNotifications([]);
+        setUnreadCount(0);
+      })
+      .catch(() => {});
+  };
+
   const getTimeAgo = (dateStr) => {
     const now = new Date();
     const date = new Date(dateStr);
@@ -418,15 +439,26 @@ export default function Layout({ children }) {
                           </span>
                         )}
                       </h3>
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={markAllRead}
-                          className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
-                        >
-                          <CheckCheck className="w-3.5 h-3.5" />
-                          Tout marquer lu
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={markAllRead}
+                            className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                          >
+                            <CheckCheck className="w-3.5 h-3.5" />
+                            Tout lu
+                          </button>
+                        )}
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={deleteAllNotifications}
+                            className="text-xs text-danger-500 hover:text-danger-700 font-medium flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Tout effacer
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Notifications list */}
@@ -466,7 +498,7 @@ export default function Layout({ children }) {
                                   navigate(`/tubes?highlight=${notif.tube_id}`);
                                 }
                               }}
-                              className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 ${decisionBg} ${!notif.lu ? 'bg-opacity-100' : 'bg-opacity-30 opacity-70'}`}
+                              className={`group flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 ${decisionBg} ${!notif.lu ? 'bg-opacity-100' : 'bg-opacity-30 opacity-70'}`}
                             >
                               <div className="flex-shrink-0 mt-0.5">
                                 {decisionIcon}
@@ -487,6 +519,16 @@ export default function Layout({ children }) {
                                   <div className="w-2.5 h-2.5 rounded-full bg-primary-500"></div>
                                 </div>
                               )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteNotification(notif.id, !notif.lu);
+                                }}
+                                className="flex-shrink-0 mt-0.5 p-1 rounded-md text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors opacity-0 group-hover:opacity-100"
+                                title="Supprimer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           );
                         })

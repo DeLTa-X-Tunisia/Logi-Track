@@ -64,4 +64,29 @@ router.delete('/clear', async (req, res) => {
   }
 });
 
+// DELETE /api/notifications/tout - Supprimer toutes les notifications
+router.delete('/tout', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM notifications');
+    res.json({ success: true, deleted: result.affectedRows });
+  } catch (error) {
+    console.error('Erreur DELETE tout:', error);
+    res.status(500).json({ error: 'Erreur suppression notifications' });
+  }
+});
+
+// DELETE /api/notifications/:id - Supprimer une notification individuelle
+router.delete('/:id', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM notifications WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Notification non trouvée' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur DELETE notification:', error);
+    res.status(500).json({ error: 'Erreur suppression notification' });
+  }
+});
+
 module.exports = router;
